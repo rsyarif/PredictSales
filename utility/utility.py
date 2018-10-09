@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -45,4 +44,3 @@ def plotYearly(yearlySales,y_test,saveName,saveplots=False):
     plt.legend()
     if(saveplots):plt.savefig('yearly_trend_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
-    
