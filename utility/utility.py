@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 def plotYearly(yearlySales,y_test,saveName,saveplots=False):
 
     y_test_total_cnt_month = y_test.sum()['item_cnt_month']
-    #y_test_total_cnt_month=0.7
     print 'total sales count from '+saveName+' prediction:',y_test_total_cnt_month
     
     constant_total_cnt_month = 214200 * 0.5
