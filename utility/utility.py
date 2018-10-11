@@ -114,5 +114,25 @@ def plotResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
     if(saveplots):plt.savefig('yearly_sales_residual_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
 
+def plotRelResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
+
+    x,y_1,y_2,y_3 = plotYearly_v2(yearlySales,y_test,saveName,saveplots,shift,ShowPlot=False)
+
+    x.remove(x[0])
+    y1 = [(y_1[i]-y_1[i-1])/(y_1[i-1]+1e-7) for i in xrange(1,len(y_1))]
+    y2 = [(y_2[i]-y_2[i-1])/(y_2[i-1]+1e-7) for i in xrange(1,len(y_2))]
+    y3 = [(y_3[i]-y_3[i-1])/(y_3[i-1]+1e-7) for i in xrange(1,len(y_3))]
+
+    plt.figure(figsize=(6.4*3,4.8))
+    plt.plot(x,y1,label=saveName+' prediction')
+    plt.plot(x,y2,label='Constant 0.5 prediction')
+    plt.plot(x,y3,label='Prev month prediction ')
+    plt.ylabel('total item count')
+    plt.xlabel('month_year')
+    plt.xticks(rotation=45)
+    plt.title('Total sales relative residuals')
+    plt.legend()
+    if(saveplots):plt.savefig('yearly_sales_relative_residual_compare_with_pred_'+saveName+'.pdf')
+    plt.show() 
 
 
