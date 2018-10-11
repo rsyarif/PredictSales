@@ -3,23 +3,6 @@ import pandas as pd
 import os
 
 
-### Initialize:
-# col_to_keep = ['shop_id','item_id','item_category_id','item_cnt_day']
-
-# groupby_list = ['shop_id','item_id']
-
-# #agg_dict = {'item_price':'mean','item_category_id':'mean','item_cnt_day':'sum'}
-# agg_dict = {'item_category_id':'mean','item_cnt_day':'sum'}
-# agg_targ = {'item_cnt_day':'sum'}
-
-# col_targets=['shop_item_cnt_month',
-#              'shop_cnt_month',
-#              'item_cnt_month',
-#              'shop_item_cnt_month_diff(0-1)',
-#              'shop_cnt_month_diff(0-1)',
-#              'item_cnt_month_diff(0-1)']
-
-
 def getData():
 
 	path = '/Users/rizki/Dropbox/Coursera/AML_HowToKaggle/FinalProject/PredictSales/all/'
@@ -72,11 +55,11 @@ def createTrainSet(**kwargs):
 	item_cat_count_feat = kwargs['item_cat_count_feat']
 	target = kwargs['target']
 
-	print 'lag_length:',lag_length
-	print 'diff:',diff
-	print 'diffRel:',diffRel
-	print 'item_cat_count_feat :',item_cat_count_feat
-	print 'target:',target
+	# print 'lag_length:',lag_length
+	# print 'diff:',diff
+	# print 'diffRel:',diffRel
+	# print 'item_cat_count_feat :',item_cat_count_feat
+	# print 'target:',target
 
 	col_to_keep = kwargs['col_to_keep']
 	groupby_list= kwargs['groupby_list']
@@ -161,11 +144,11 @@ def createValSet(**kwargs):
 	item_cat_count_feat = kwargs['item_cat_count_feat']
 	target = kwargs['target']
 
-	print 'lag_length:',lag_length
-	print 'diff:',diff
-	print 'diffRel:',diffRel
-	print 'item_cat_count_feat :',item_cat_count_feat
-	print 'target:',target
+	# print 'lag_length:',lag_length
+	# print 'diff:',diff
+	# print 'diffRel:',diffRel
+	# print 'item_cat_count_feat :',item_cat_count_feat
+	# print 'target:',target
 
 	col_to_keep = kwargs['col_to_keep']
 	groupby_list= kwargs['groupby_list']
@@ -248,10 +231,10 @@ def createTestSet(**kwargs):
 	diffRel = kwargs['diffRel']
 	item_cat_count_feat = kwargs['item_cat_count_feat']
 
-	print 'lag_length:',lag_length
-	print 'diff:',diff
-	print 'diffRel:',diffRel
-	print 'item_cat_count_feat :',item_cat_count_feat
+	# print 'lag_length:',lag_length
+	# print 'diff:',diff
+	# print 'diffRel:',diffRel
+	# print 'item_cat_count_feat :',item_cat_count_feat
 
 	col_to_keep = kwargs['col_to_keep']
 	groupby_list= kwargs['groupby_list']
