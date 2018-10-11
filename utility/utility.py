@@ -40,16 +40,17 @@ def plotYearly(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
     plt.plot(x15_3,y15_3,label='Prev month prediction ')
     plt.ylabel('total item count')
     plt.xlabel('month')
+    plt.title('Total sales')
     plt.legend()
     if(saveplots):plt.savefig('yearly_trend_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
 
-def plotYearly_v2(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
+def plotYearly_v2(yearlySales,y_test,saveName,saveplots=False,shift=0.0,ShowPlot=True):
     y_test_total_cnt_month = y_test.sum()['item_cnt_month'] - shift
-    print 'total sales count from '+saveName+' prediction:',y_test_total_cnt_month
+    #print 'total sales count from '+saveName+' prediction:',y_test_total_cnt_month
     
     constant_total_cnt_month = 214200 * 0.5 - shift
-    print 'total sales count from contant 0.5 prediction:',constant_total_cnt_month
+    #print 'total sales count from contant 0.5 prediction:',constant_total_cnt_month
     
     total_item_cnt_2013 = yearlySales[0]
     total_item_cnt_2014 = yearlySales[1]
@@ -77,14 +78,41 @@ def plotYearly_v2(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
     y_2 = np.concatenate((y13,y14,y15_2))
     y_3 = np.concatenate((y13,y14,y15_3))
 
+    if(ShowPlot):
+        plt.figure(figsize=(6.4*3,4.8))
+        plt.plot(x,y_1,label=saveName+' prediction')
+        plt.plot(x,y_2,label='Constant 0.5 prediction')
+        plt.plot(x,y_3,label='Prev month prediction ')
+        plt.ylabel('total item count')
+        plt.xlabel('month_year')
+        plt.xticks(rotation=45)
+        plt.title('Total sales')    
+        plt.legend()
+        if(saveplots):plt.savefig('yearly_trend_v2_compare_with_pred_'+saveName+'.pdf')
+        plt.show() 
+
+    return (x,y_1,y_2,y_3)
+
+def plotResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
+
+    x,y_1,y_2,y_3 = plotYearly_v2(yearlySales,y_test,saveName,saveplots,shift,ShowPlot=False)
+
+    x.remove(x[0])
+    y1 = [y_1[i]-y_1[i-1] for i in xrange(1,len(y_1))]
+    y2 = [y_2[i]-y_2[i-1] for i in xrange(1,len(y_2))]
+    y3 = [y_3[i]-y_3[i-1] for i in xrange(1,len(y_3))]
+
     plt.figure(figsize=(6.4*3,4.8))
-    plt.plot(x,y_1,label=saveName+' prediction')
-    plt.plot(x,y_2,label='Constant 0.5 prediction')
-    plt.plot(x,y_3,label='Prev month prediction ')
+    plt.plot(x,y1,label=saveName+' prediction')
+    plt.plot(x,y2,label='Constant 0.5 prediction')
+    plt.plot(x,y3,label='Prev month prediction ')
     plt.ylabel('total item count')
     plt.xlabel('month_year')
     plt.xticks(rotation=45)
+    plt.title('Total sales residuals')
     plt.legend()
-    if(saveplots):plt.savefig('yearly_trend_v2_compare_with_pred_'+saveName+'.pdf')
+    if(saveplots):plt.savefig('yearly_sales_residual_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
+
+
 
