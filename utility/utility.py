@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 
-def plotYearly(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
+def plotYearly(yearlySales,y_test,saveName,saveplots=False,shift=0.0,saveFolder=os.getcwd()):
 
     y_test_total_cnt_month = y_test.sum()['item_cnt_month'] - shift
     print 'total sales count from '+saveName+' prediction:',y_test_total_cnt_month
@@ -42,10 +43,10 @@ def plotYearly(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
     plt.xlabel('month')
     plt.title('Total sales')
     plt.legend()
-    if(saveplots):plt.savefig('yearly_trend_compare_with_pred_'+saveName+'.pdf')
+    if(saveplots):plt.savefig(saveFolder+'/'+'yearly_trend_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
 
-def plotYearly_v2(yearlySales,y_test,saveName,saveplots=False,shift=0.0,ShowPlot=True):
+def plotYearly_v2(yearlySales,y_test,saveName,saveplots=False,shift=0.0,ShowPlot=True,saveFolder=os.getcwd()):
     y_test_total_cnt_month = y_test.sum()['item_cnt_month'] - shift
     #print 'total sales count from '+saveName+' prediction:',y_test_total_cnt_month
     
@@ -88,14 +89,14 @@ def plotYearly_v2(yearlySales,y_test,saveName,saveplots=False,shift=0.0,ShowPlot
         plt.xticks(rotation=45)
         plt.title('Total sales')    
         plt.legend()
-        if(saveplots):plt.savefig('yearly_trend_v2_compare_with_pred_'+saveName+'.pdf')
+        if(saveplots):plt.savefig(saveFolder+'/'+'yearly_trend_v2_compare_with_pred_'+saveName+'.pdf')
         plt.show() 
 
     return (x,y_1,y_2,y_3)
 
-def plotResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
+def plotResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0,saveFolder=os.getcwd()):
 
-    x,y_1,y_2,y_3 = plotYearly_v2(yearlySales,y_test,saveName,saveplots,shift,ShowPlot=False)
+    x,y_1,y_2,y_3 = plotYearly_v2(yearlySales,y_test,saveName,saveplots,shift,ShowPlot=False,saveFolder=os.getcwd())
 
     x.remove(x[0])
     y1 = [y_1[i]-y_1[i-1] for i in xrange(1,len(y_1))]
@@ -111,12 +112,12 @@ def plotResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
     plt.xticks(rotation=45)
     plt.title('Total sales residuals')
     plt.legend()
-    if(saveplots):plt.savefig('yearly_sales_residual_compare_with_pred_'+saveName+'.pdf')
+    if(saveplots):plt.savefig(saveFolder+'/'+'yearly_sales_residual_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
 
 def plotRelResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
 
-    x,y_1,y_2,y_3 = plotYearly_v2(yearlySales,y_test,saveName,saveplots,shift,ShowPlot=False)
+    x,y_1,y_2,y_3 = plotYearly_v2(yearlySales,y_test,saveName,saveplots,shift,ShowPlot=False,saveFolder=os.getcwd())
 
     x.remove(x[0])
     y1 = [(y_1[i]-y_1[i-1])/(y_1[i-1]+1e-7) for i in xrange(1,len(y_1))]
@@ -132,7 +133,12 @@ def plotRelResidual(yearlySales,y_test,saveName,saveplots=False,shift=0.0):
     plt.xticks(rotation=45)
     plt.title('Total sales relative residuals')
     plt.legend()
-    if(saveplots):plt.savefig('yearly_sales_relative_residual_compare_with_pred_'+saveName+'.pdf')
+    if(saveplots):plt.savefig(saveFolder+'/'+'yearly_sales_relative_residual_compare_with_pred_'+saveName+'.pdf')
     plt.show() 
 
-
+def hist_integrals(nbins,counts,bin_edges,start_bin=1):
+    print 'integral from bin',start_bin-1
+    print 'bin_width:',bin_edges[1]-bin_edges[0] #assume same width bins!
+    print 'upper bound integral:',np.sum([counts[i-1]*bin_edges[i] for i in xrange(start_bin,nbins)])
+    print 'lower bound integral:',np.sum([counts[i-1]*bin_edges[i-1] for i in xrange(start_bin,nbins)])
+    print 'center bin integral:',np.sum([ counts[i-1] * (bin_edges[i]+bin_edges[i-1]) / 2 for i in xrange(start_bin,nbins)])
