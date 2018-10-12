@@ -13,28 +13,15 @@ class Sets:
 		path = '/Users/rizki/Dropbox/Coursera/AML_HowToKaggle/FinalProject/PredictSales/all/'
 
 		self.items = pd.read_csv(path+'items.csv')
-		item_categories = pd.read_csv(path+'item_categories.csv')
-		shops = pd.read_csv(path+'shops.csv')
+		self.item_categories = pd.read_csv(path+'item_categories.csv')
+		self.shops = pd.read_csv(path+'shops.csv')
 		self.sales_train = pd.read_csv(path+'sales_train.csv')
 		self.test = pd.read_csv(path+'test.csv')
 
-		# Format 'date' to datetime
-		self.sales_train['date'] = pd.to_datetime(self.sales_train['date'],format='%d.%m.%Y')
-
-		# Add item_category_id to sales_train
-		self.sales_train = pd.merge(self.sales_train,self.items[['item_id','item_category_id']],on='item_id',how='left').sort_values(by='item_id')
-
-		#add new columns: years, month, Y_M
-		self.sales_train['year'] = self.sales_train['date'].dt.year
-		self.sales_train['month'] = self.sales_train['date'].dt.month
-		self.sales_train_year = self.sales_train['date'].dt.year.astype('string')
-		self.sales_train_month = self.sales_train['date'].dt.month.astype('string')
-		self.sales_train['Y_M'] = self.sales_train_year+'_'+self.sales_train_month
-
 		self.data = {
 				'items':self.items,
-				'item_categories':item_categories,
-				'shops':shops,
+				'item_categories':self.item_categories,
+				'shops':self.shops,
 				'sales_train':self.sales_train,
 				'test':self.test,
 				}
@@ -58,6 +45,56 @@ class Sets:
 		self.agg_targ= kwargs['agg_targ']
 		self.col_targets= kwargs['col_targets']
 
+	def convertDatetime(self):
+		# Format 'date' to 
+		print "\nFormat 'date' to 'datetime' in sales_train"
+		self.sales_train['date'] = pd.to_datetime(self.sales_train['date'],format='%d.%m.%Y')
+
+	def addItemCategoryId(self):
+		# Add item_category_id to sales_train
+		print "\nAdd new column: 'item_category_id' to sales_train"
+		self.sales_train = pd.merge(self.sales_train,self.items[['item_id','item_category_id']],on='item_id',how='left').sort_values(by='item_id')
+
+	def addYMcolumn(self):
+		#add new columns: years, month, Y_M
+		print "\nAdd new column: years, month, Y_M to sales_train"
+		self.sales_train['year'] = self.sales_train['date'].dt.year
+		self.sales_train['month'] = self.sales_train['date'].dt.month
+		self.sales_train_year = self.sales_train['date'].dt.year.astype('string')
+		self.sales_train_month = self.sales_train['date'].dt.month.astype('string')
+		self.sales_train['Y_M'] = self.sales_train_year+'_'+self.sales_train_month
+
+
+	def getBins(self,bin_edges): #for binPrice method.
+	    bins =[]
+	    labels=[]
+	    for (i,val) in enumerate(bin_edges):
+	        if i < len(bin_edges)-1: 
+	            bins.append((bin_edges[i],bin_edges[i+1]))
+	            labels.append('{}to{}'.format(bin_edges[i],bin_edges[i+1]))
+	    return bins,labels
+
+	def binPrice(self,bin_edges):
+		#count in each bins
+
+		print '\nCounting based on the defined bins:\n'
+		for i,ibin in enumerate(bin_edges):    
+		    if i==len(bin_edges)-1: 
+		        print '{}-:'.format(bin_edges[i],bin_edges[i]),
+		        print self.sales_train[(self.sales_train.item_price>=bin_edges[i])].shape[0]
+		        continue
+		    else:        
+		        print '{}-{} :'.format(bin_edges[i],bin_edges[i+1]),
+		        print self.sales_train[(self.sales_train.item_price>=bin_edges[i])&(self.sales_train.item_price<bin_edges[i+1])].shape[0]
+
+		bins,labels = self.getBins(bin_edges)            
+
+		df_bins = pd.IntervalIndex.from_tuples(bins)
+		s_binned = pd.cut(self.sales_train['item_price'],bins=df_bins,labels=labels)
+
+		print '\nAdding new column: price_range to sales_train.'
+		self.sales_train['price_range'] = s_binned
+
 
 	def splitDataByYear(self):
 		#split by year
@@ -79,7 +116,17 @@ class Sets:
 	def getData(self):
 		#updates to latest data
 		print '\nRetrieving latest (preprocessed) data'
+
+		self.data.update({
+				'items':self.items,
+				'item_categories':self.item_categories,
+				'shops':self.shops,
+				'sales_train':self.sales_train,
+				'test':self.test,
+				})
+
 		return self.data
+
 
 	def checkDuplicates(self):
 
