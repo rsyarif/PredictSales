@@ -16,6 +16,7 @@ class Sets:
 		self.item_categories = pd.read_csv(path+'item_categories.csv')
 		self.shops = pd.read_csv(path+'shops.csv')
 		self.sales_train = pd.read_csv(path+'sales_train.csv')
+		print '\nsales_train shape:',self.sales_train.shape
 		self.test = pd.read_csv(path+'test.csv')
 
 		self.data = {
@@ -44,6 +45,10 @@ class Sets:
 		self.agg_dict= kwargs['agg_dict']
 		self.agg_targ= kwargs['agg_targ']
 		self.col_targets= kwargs['col_targets']
+
+		self.meanEncode = kwargs['meanEncode']
+		self.meanEncodeCol=kwargs['meanEncodeCol']
+
 
 	def convertDatetime(self):
 		# Format 'date' to 
@@ -113,6 +118,8 @@ class Sets:
 
 		self.data.update(data)
 
+	# def getShapes
+
 	def getData(self):
 		#updates to latest data
 		print '\nRetrieving latest (preprocessed) data'
@@ -124,6 +131,7 @@ class Sets:
 				'sales_train':self.sales_train,
 				'test':self.test,
 				})
+		print '\nsales_train shape:',self.sales_train.shape
 
 		return self.data
 
@@ -150,28 +158,52 @@ class Sets:
 	# def checkOutliers(self):
 	# def clipSalesCount(self):
 
+	def aggAddNewColumns(self,dataset):
+		#target features:
+
+		#agg shop_item 
+		df = dataset.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month'})
+		#agg shop (mean encoding)
+		if(self.meanEncode):shop = dataset[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month'})
+		#agg item (mean encoding)
+		if(self.meanEncode):item = dataset[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
+		#agg item_cat (mean encoding)
+		if(self.item_cat_count_feat and self.meanEncode):itemcat = dataset[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
+
+		#add new columns: shop_item_id
+		df['shop_item_id']=df['shop_id'].astype('string')+'_'+df['item_id'].astype('string')
+
+		#merge
+		if(self.meanEncode):df = pd.merge(df,shop,on=['shop_id'],how='left')
+		if(self.meanEncode):df = pd.merge(df,item,on=['item_id'],how='left')
+		if(self.item_cat_count_feat and self.meanEncode):df = pd.merge(df,itemcat,on=['item_category_id'],how='left')
+
+		return df
+
 	def createTrainSet(self):
 
 		x_train = self.sales_2013[self.sales_2013['month']==11]
 		x_train = x_train[self.col_to_keep]
 
-		#target features:
-		#agg shop_item 
-		x_train_shop_item = x_train.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month'})
-		#agg shop 
-		x_train_shop = x_train[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month'})
-		#agg item 
-		x_train_item = x_train[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
-		#agg item_cat 
-		if(self.item_cat_count_feat):x_train_itemcat = x_train[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
+		x_train_shop_item = self.aggAddNewColumns(x_train)
 
-		#add new columns: shop_item_id
-		x_train_shop_item['shop_item_id']=x_train_shop_item['shop_id'].astype('string')+'_'+x_train_shop_item['item_id'].astype('string')
+		# #target features:
+		# #agg shop_item 
+		# x_train_shop_item = x_train.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month'})
+		# #agg shop (mean encoding)
+		# if(self.meanEncode):x_train_shop = x_train[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month'})
+		# #agg item (mean encoding)
+		# if(self.meanEncode):x_train_item = x_train[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
+		# #agg item_cat (mean encoding)
+		# if(self.item_cat_count_feat and self.meanEncode):x_train_itemcat = x_train[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
 
-		#merge
-		x_train_shop_item = pd.merge(x_train_shop_item,x_train_shop,on=['shop_id'],how='left')
-		x_train_shop_item = pd.merge(x_train_shop_item,x_train_item,on=['item_id'],how='left')
-		if(self.item_cat_count_feat):x_train_shop_item = pd.merge(x_train_shop_item,x_train_itemcat,on=['item_category_id'],how='left')
+		# #add new columns: shop_item_id
+		# x_train_shop_item['shop_item_id']=x_train_shop_item['shop_id'].astype('string')+'_'+x_train_shop_item['item_id'].astype('string')
+
+		# #merge
+		# if(self.meanEncode):x_train_shop_item = pd.merge(x_train_shop_item,x_train_shop,on=['shop_id'],how='left')
+		# if(self.meanEncode):x_train_shop_item = pd.merge(x_train_shop_item,x_train_item,on=['item_id'],how='left')
+		# if(self.item_cat_count_feat and self.meanEncode):x_train_shop_item = pd.merge(x_train_shop_item,x_train_itemcat,on=['item_category_id'],how='left')
 
 
 		#introduce lag features 10 months behind.
@@ -182,21 +214,21 @@ class Sets:
 		    #agg shop_item 
 		    x_train_shop_item_lag = x_train_lag.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month_lag_'+str(i)})
 		    x_train_shop_item_lag.drop(columns=['item_category_id'],inplace=True)
-		    #agg shop 
-		    x_train_shop_lag = x_train_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
-		    #agg item 
-		    x_train_item_lag = x_train_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
-		    #agg item_cat 
-		    if(self.item_cat_count_feat):x_train_itemcat_lag = x_train_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
+		    #agg shop (mean encoding)
+		    if(self.meanEncode):x_train_shop_lag = x_train_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
+		    #agg item (mean encoding)
+		    if(self.meanEncode):x_train_item_lag = x_train_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
+		    #agg item_cat (mean encoding)
+		    if(self.item_cat_count_feat and self.meanEncode):x_train_itemcat_lag = x_train_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
 
 		    #merge
 		    x_train_shop_item = pd.merge(x_train_shop_item,x_train_shop_item_lag,on=['shop_id','item_id'],how='left')
-		    x_train_shop_item = pd.merge(x_train_shop_item,x_train_shop_lag,on=['shop_id'],how='left')
-		    x_train_shop_item = pd.merge(x_train_shop_item,x_train_item_lag,on=['item_id'],how='left')
-		    if(self.item_cat_count_feat):x_train_shop_item = pd.merge(x_train_shop_item,x_train_itemcat_lag,on=['item_category_id'],how='left')
+		    if(self.meanEncode):x_train_shop_item = pd.merge(x_train_shop_item,x_train_shop_lag,on=['shop_id'],how='left')
+		    if(self.meanEncode):x_train_shop_item = pd.merge(x_train_shop_item,x_train_item_lag,on=['item_id'],how='left')
+		    if(self.item_cat_count_feat and self.meanEncode):x_train_shop_item = pd.merge(x_train_shop_item,x_train_itemcat_lag,on=['item_category_id'],how='left')
 		    
 		    #self.diffs
-		    for col in ['shop_item','shop','item','item_cat']:
+		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
 		        if(not self.item_cat_count_feat and col=='item_cat'): continue #skip item_cat if this feat is not turned on 
 
 		        if i==1:
@@ -224,22 +256,24 @@ class Sets:
 		x_val = self.sales_2014[self.sales_2014['month']==11]
 		x_val = x_val[self.col_to_keep]
 
-		#agg shop_item 
-		x_val_shop_item = x_val.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month'})
-		#agg shop 
-		x_val_shop = x_val[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month'})
-		#agg item 
-		x_val_item = x_val[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
-		#agg item_cat 
-		if(self.item_cat_count_feat):x_val_itemcat = x_val[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
+		x_val_shop_item = self.aggAddNewColumns(x_val)
 
-		#add new columns: shop_item_id
-		x_val_shop_item['shop_item_id']=x_val_shop_item['shop_id'].astype('string')+'_'+x_val_shop_item['item_id'].astype('string')
+		# #agg shop_item 
+		# x_val_shop_item = x_val.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month'})
+		# #agg shop (mean encoding)
+		# if(self.meanEncode):x_val_shop = x_val[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month'})
+		# #agg item (mean encoding)
+		# if(self.meanEncode):x_val_item = x_val[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
+		# #agg item_cat (mean encoding)
+		# if(self.item_cat_count_feat and self.meanEncode):x_val_itemcat = x_val[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
 
-		#merge
-		x_val_shop_item = pd.merge(x_val_shop_item,x_val_shop,on=['shop_id'],how='left')
-		x_val_shop_item = pd.merge(x_val_shop_item,x_val_item,on=['item_id'],how='left')
-		if(self.item_cat_count_feat):x_val_shop_item = pd.merge(x_val_shop_item,x_val_itemcat,on=['item_category_id'],how='left')
+		# #add new columns: shop_item_id
+		# x_val_shop_item['shop_item_id']=x_val_shop_item['shop_id'].astype('string')+'_'+x_val_shop_item['item_id'].astype('string')
+
+		# #merge
+		# if(self.meanEncode):x_val_shop_item = pd.merge(x_val_shop_item,x_val_shop,on=['shop_id'],how='left')
+		# if(self.meanEncode):x_val_shop_item = pd.merge(x_val_shop_item,x_val_item,on=['item_id'],how='left')
+		# if(self.item_cat_count_feat and self.meanEncode):x_val_shop_item = pd.merge(x_val_shop_item,x_val_itemcat,on=['item_category_id'],how='left')
 
 		#introduce lag features
 		for i in xrange(1,self.lag_length+1):
@@ -249,21 +283,21 @@ class Sets:
 		    #agg shop_item 
 		    x_val_shop_item_lag = x_val_lag.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month_lag_'+str(i)})
 		    x_val_shop_item_lag.drop(columns=['item_category_id'],inplace=True)
-		    #agg shop 
-		    x_val_shop_lag = x_val_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
-		    #agg item 
-		    x_val_item_lag = x_val_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
-		    #agg item_cat 
-		    if(self.item_cat_count_feat):x_val_itemcat_lag = x_val_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
+		    #agg shop (mean encoding)
+		    if(self.meanEncode):x_val_shop_lag = x_val_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
+		    #agg item (mean encoding)
+		    if(self.meanEncode):x_val_item_lag = x_val_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
+		    #agg item_cat (mean encoding)
+		    if(self.item_cat_count_feat and self.meanEncode):x_val_itemcat_lag = x_val_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
 
 		    #merge
 		    x_val_shop_item = pd.merge(x_val_shop_item,x_val_shop_item_lag,on=['shop_id','item_id'],how='left')
-		    x_val_shop_item = pd.merge(x_val_shop_item,x_val_shop_lag,on=['shop_id'],how='left')
-		    x_val_shop_item = pd.merge(x_val_shop_item,x_val_item_lag,on=['item_id'],how='left')
-		    if(self.item_cat_count_feat):x_val_shop_item = pd.merge(x_val_shop_item,x_val_itemcat_lag,on=['item_category_id'],how='left')
+		    if(self.meanEncode):x_val_shop_item = pd.merge(x_val_shop_item,x_val_shop_lag,on=['shop_id'],how='left')
+		    if(self.meanEncode):x_val_shop_item = pd.merge(x_val_shop_item,x_val_item_lag,on=['item_id'],how='left')
+		    if(self.item_cat_count_feat and self.meanEncode):x_val_shop_item = pd.merge(x_val_shop_item,x_val_itemcat_lag,on=['item_category_id'],how='left')
 		    
 		    #self.diffs
-		    for col in ['shop_item','shop','item','item_cat']:
+		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
 		        if(not self.item_cat_count_feat and col=='item_cat'): continue #skip item_cat if this feat is not turned on 
 
 		        if i==1: 
@@ -304,21 +338,21 @@ class Sets:
 		    #agg shop_item 
 		    x_test_shop_item_lag = x_test_lag.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month_lag_'+str(i)})
 		    x_test_shop_item_lag.drop(columns=['item_category_id'],inplace=True)
-		    #agg shop 
-		    x_test_shop_lag = x_test_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
-		    #agg item 
-		    x_test_item_lag = x_test_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
-		    #agg item_cat 
-		    if(self.item_cat_count_feat):x_test_itemcat_lag = x_test_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
+		    #agg shop (mean encoding)
+		    if(self.meanEncode):x_test_shop_lag = x_test_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
+		    #agg item (mean encoding)
+		    if(self.meanEncode):x_test_item_lag = x_test_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
+		    #agg item_cat (mean encoding)
+		    if(self.item_cat_count_feat and self.meanEncode):x_test_itemcat_lag = x_test_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
 
 		    #merge
 		    x_test = pd.merge(x_test,x_test_shop_item_lag,on=['shop_id','item_id'],how='left')
-		    x_test = pd.merge(x_test,x_test_shop_lag,on=['shop_id'],how='left')
-		    x_test = pd.merge(x_test,x_test_item_lag,on=['item_id'],how='left')
-		    if(self.item_cat_count_feat):x_test = pd.merge(x_test,x_test_itemcat_lag,on=['item_category_id'],how='left')
+		    if(self.meanEncode):x_test = pd.merge(x_test,x_test_shop_lag,on=['shop_id'],how='left')
+		    if(self.meanEncode):x_test = pd.merge(x_test,x_test_item_lag,on=['item_id'],how='left')
+		    if(self.item_cat_count_feat and self.meanEncode):x_test = pd.merge(x_test,x_test_itemcat_lag,on=['item_category_id'],how='left')
 		    
 		    #self.diffs
-		    for col in ['shop_item','shop','item','item_cat']:
+		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
 		        if(not self.item_cat_count_feat and col=='item_cat'): continue #skip item_cat if this feat is not turned on 
 		        if i>=2:  
 		            if(self.diff):x_test[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = x_test[col+'_cnt_month_lag_'+str(i-1)] - x_test[col+'_cnt_month_lag_'+str(i)]   
