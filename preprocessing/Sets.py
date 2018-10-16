@@ -10,13 +10,14 @@ class Sets:
 		# self.sales_2014 = kwargs['sales_2014']
 		# self.sales_2015 = kwargs['sales_2015']
 
+		self.verbose = kwargs['verbose']
+
 		path = '/Users/rizki/Dropbox/Coursera/AML_HowToKaggle/FinalProject/PredictSales/all/'
 
 		self.items = pd.read_csv(path+'items.csv')
 		self.item_categories = pd.read_csv(path+'item_categories.csv')
 		self.shops = pd.read_csv(path+'shops.csv')
 		self.sales_train = pd.read_csv(path+'sales_train.csv')
-		print '\nsales_train shape:',self.sales_train.shape
 		self.test = pd.read_csv(path+'test.csv')
 
 		self.data = {
@@ -34,12 +35,6 @@ class Sets:
 		self.item_cat_count_feat = kwargs['item_cat_count_feat']
 		self.target = kwargs['target']
 
-		print 'lag_length:',self.lag_length
-		print 'diff:',self.diff
-		print 'diffRel:',self.diffRel
-		print 'item_cat_count_feat :',self.item_cat_count_feat
-		print 'target:',self.target
-
 		self.col_to_keep = kwargs['col_to_keep']
 		self.groupby_list= kwargs['groupby_list']
 		self.agg_dict= kwargs['agg_dict']
@@ -49,20 +44,29 @@ class Sets:
 		self.meanEncode = kwargs['meanEncode']
 		self.meanEncodeCol=kwargs['meanEncodeCol']
 
+		if(self.verbose):print '\nsales_train shape:',self.sales_train.shape
+
+		print 'lag_length:',self.lag_length
+		print 'diff:',self.diff
+		print 'diffRel:',self.diffRel
+		print 'item_cat_count_feat :',self.item_cat_count_feat
+		print 'target:',self.target
 
 	def convertDatetime(self):
 		# Format 'date' to 
-		print "\nFormat 'date' to 'datetime' in sales_train"
+		if(self.verbose):print "\nFormat 'date' to 'datetime' in sales_train"
 		self.sales_train['date'] = pd.to_datetime(self.sales_train['date'],format='%d.%m.%Y')
+
 
 	def addItemCategoryId(self):
 		# Add item_category_id to sales_train
-		print "\nAdd new column: 'item_category_id' to sales_train"
+		if(self.verbose):print "\nAdd new column: 'item_category_id' to sales_train"
 		self.sales_train = pd.merge(self.sales_train,self.items[['item_id','item_category_id']],on='item_id',how='left').sort_values(by='item_id')
+
 
 	def addYMcolumn(self):
 		#add new columns: years, month, Y_M
-		print "\nAdd new column: years, month, Y_M to sales_train"
+		if(self.verbose):print "\nAdd new column: years, month, Y_M to sales_train"
 		self.sales_train['year'] = self.sales_train['date'].dt.year
 		self.sales_train['month'] = self.sales_train['date'].dt.month
 		self.sales_train_year = self.sales_train['date'].dt.year.astype('string')
@@ -79,32 +83,33 @@ class Sets:
 	            labels.append('{}to{}'.format(bin_edges[i],bin_edges[i+1]))
 	    return bins,labels
 
+
 	def binPrice(self,bin_edges):
 		#count in each bins
 
-		print '\nCounting based on the defined bins:\n'
+		if(self.verbose):print '\nCounting based on the defined bins:\n'
 		for i,ibin in enumerate(bin_edges):    
 		    if i==len(bin_edges)-1: 
-		        print '{}-:'.format(bin_edges[i],bin_edges[i]),
-		        print self.sales_train[(self.sales_train.item_price>=bin_edges[i])].shape[0]
+		        if(self.verbose):print '{}-:'.format(bin_edges[i],bin_edges[i]),
+		        if(self.verbose):print self.sales_train[(self.sales_train.item_price>=bin_edges[i])].shape[0]
 		        continue
 		    else:        
-		        print '{}-{} :'.format(bin_edges[i],bin_edges[i+1]),
-		        print self.sales_train[(self.sales_train.item_price>=bin_edges[i])&(self.sales_train.item_price<bin_edges[i+1])].shape[0]
+		        if(self.verbose):print '{}-{} :'.format(bin_edges[i],bin_edges[i+1]),
+		        if(self.verbose):print self.sales_train[(self.sales_train.item_price>=bin_edges[i])&(self.sales_train.item_price<bin_edges[i+1])].shape[0]
 
 		bins,labels = self.getBins(bin_edges)            
 
 		df_bins = pd.IntervalIndex.from_tuples(bins)
 		s_binned = pd.cut(self.sales_train['item_price'],bins=df_bins,labels=labels)
 
-		print '\nAdding new column: price_range to sales_train.'
+		if(self.verbose):print '\nAdding new column: price_range to sales_train.'
 		self.sales_train['price_range'] = s_binned
 
 
 	def splitDataByYear(self):
 		#split by year
 
-		print '\nSplitting sales_train to sales_train_2013, sales_train_2014, and sales_train_2015.'
+		if(self.verbose):print '\nSplitting sales_train to sales_train_2013, sales_train_2014, and sales_train_2015.'
 
 		self.sales_2013 = self.sales_train[self.sales_train['year']==2013]
 		self.sales_2014 = self.sales_train[self.sales_train['year']==2014]
@@ -118,11 +123,10 @@ class Sets:
 
 		self.data.update(data)
 
-	# def getShapes
 
 	def getData(self):
 		#updates to latest data
-		print '\nRetrieving latest (preprocessed) data'
+		if(self.verbose):print '\nRetrieving latest (preprocessed) data'
 
 		self.data.update({
 				'items':self.items,
@@ -131,7 +135,7 @@ class Sets:
 				'sales_train':self.sales_train,
 				'test':self.test,
 				})
-		print '\nsales_train shape:',self.sales_train.shape
+		if(self.verbose):print '\nsales_train shape:',self.sales_train.shape
 
 		return self.data
 
@@ -143,20 +147,19 @@ class Sets:
 		dup_ids = []
 
 		for i,name in enumerate(obj):
-			print '\nChecking for duplicates in',name
+			if(self.verbose):print '\nChecking for duplicates in',name
 			dup = self.data[name][self.data[name].duplicated()].index.values
 			dup_ids.append(dup) 
 			if len(dup)>0:
-				print '\nFound {} duplicates in {} : {}'.format(len(dup),name,dup)
+				if(self.verbose):print '\nFound {} duplicates in {} : {}'.format(len(dup),name,dup)
 				self.data[name].drop_duplicates(keep='first',inplace=True)
-				print 'Kept first, removed duplicates'
+				if(self.verbose):print 'Kept first, removed duplicates'
 			else:
-				print 'Found no duplicates in {}'.format(name)
+				if(self.verbose):print 'Found no duplicates in {}'.format(name)
 
 		return dup_ids
 
-	# def checkOutliers(self):
-	# def clipSalesCount(self):
+
 
 	def aggAddNewColumns(self,dataset):
 		#target features:
@@ -200,8 +203,6 @@ class Sets:
 		    if(self.item_cat_count_feat and self.meanEncode):df = pd.merge(df,itemcat_lag,on=['item_category_id'],how='left')
 
 		    return df
-
-	# def addDiffLagColums(self)
 
 
 	def addLagFeatures(self,df,year):
@@ -247,8 +248,8 @@ class Sets:
 		#remove self.targets(s):
 		x_train = x_train_shop_item.drop(columns=self.col_targets)
 
-		print 'x_train.shape :',x_train.shape
-		print 'y_train.shape :',y_train.shape
+		if(self.verbose):print 'x_train.shape :',x_train.shape
+		if(self.verbose):print 'y_train.shape :',y_train.shape
 
 		return x_train, y_train
 
@@ -267,8 +268,8 @@ class Sets:
 		#remove self.targets(s):
 		x_val = x_val_shop_item.drop(columns=self.col_targets)
 
-		print 'x_val.shape :',x_val.shape
-		print 'y_val.shape :',y_val.shape
+		if(self.verbose):print 'x_val.shape :',x_val.shape
+		if(self.verbose):print 'y_val.shape :',y_val.shape
 
 		return x_val,y_val
 
@@ -289,4 +290,16 @@ class Sets:
 		#x_test.head()
 
 		return x_test
+
+
+	# def checkOutliers(self):
+
+	# def clipSalesCount(self):
+
+	# def addPriceRange(self):
+
+	# def addDiffLagColums(self)
+
+	# def getShapes
+
 
