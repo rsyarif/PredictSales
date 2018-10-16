@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+from sklearn.model_selection import KFold
 
 class Sets:
 
@@ -19,6 +20,8 @@ class Sets:
 		self.shops = pd.read_csv(path+'shops.csv')
 		self.sales_train = pd.read_csv(path+'sales_train.csv')
 		self.test = pd.read_csv(path+'test.csv')
+
+		if(self.verbose):print '\nsales_train shape:',self.sales_train.shape
 
 		self.data = {
 				'items':self.items,
@@ -44,13 +47,16 @@ class Sets:
 		self.meanEncode = kwargs['meanEncode']
 		self.meanEncodeCol=kwargs['meanEncodeCol']
 
-		if(self.verbose):print '\nsales_train shape:',self.sales_train.shape
+		self.targEnc_to_Reg=kwargs['targEnc_to_Reg']
+		self.NaN_targEnc=kwargs['NaN_targEnc']
 
+		print
 		print 'lag_length:',self.lag_length
 		print 'diff:',self.diff
 		print 'diffRel:',self.diffRel
 		print 'item_cat_count_feat :',self.item_cat_count_feat
 		print 'target:',self.target
+		print
 
 	def convertDatetime(self):
 		# Format 'date' to 
@@ -160,7 +166,6 @@ class Sets:
 		return dup_ids
 
 
-
 	def aggAddNewColumns(self,dataset):
 		#target features:
 
@@ -253,6 +258,7 @@ class Sets:
 
 		return x_train, y_train
 
+
 	def createValSet(self):
 
 		x_val = self.sales_2014[self.sales_2014['month']==11]
@@ -273,6 +279,7 @@ class Sets:
 
 		return x_val,y_val
 
+
 	def createTestSet(self):
 
 		x_test = self.test.sort_values(by=self.groupby_list)
@@ -286,17 +293,114 @@ class Sets:
 		x_test = x_test.fillna(0)
 		x_test.drop(columns=['ID'],inplace=True)
 
-		print 'x_test.shape :',x_test.shape
+		if(self.verbose):print 'x_test.shape :',x_test.shape
 		#x_test.head()
 
 		return x_test
 
 
+	def clipSalesCount(self,y_train,y_val,lowerClip,upperClip):
+
+		y_train_clip = np.clip(y_train,lowerClip,upperClip)
+		y_val_clip = np.clip(y_val,lowerClip,upperClip)
+		#print 'Sum y_train before clip [{}-{}]:'.format(lowerClip,upperClip),np.sum(y_train)
+		#print 'Sum y_val before clip[{}-{}]:'.format(lowerClip,upperClip), np.sum(y_val)
+		y_train=y_train_clip
+		y_val=y_val_clip
+		#print 'Sum y_train after clip[{}-{}]:'.format(lowerClip,upperClip),np.sum(y_train)
+		#print 'Sum y_val after clip[{}-{}]:'.format(lowerClip,upperClip), np.sum(y_val)
+
+		return y_train,y_val
+
+
+	def addPriceRange(self,x_train,x_val,x_test):
+		# # Adding price category to train,val, test
+
+		print 'train.shape:',self.sales_train.shape
+
+		#Aggregate train by 'item_price' and take __minimum__ of price range category
+		train_agg = self.sales_train.groupby(['item_id'], as_index=False).agg({'price_range':'min'})
+		train_agg[train_agg['price_range'].isna()]
+
+		#We're gonna do a hack. Change format to string, fill missing value, then change to 'category'
+		train_agg['price_range']=train_agg['price_range'].astype('string')
+		train_agg[train_agg['price_range']=='nan']
+		#self.sales_train[self.sales_train['item_id']==2973]['price_range'].unique()
+
+		#It seems all of item 2973 are priced (1000,2500], let go ahead and fix the missing value
+		train_agg.at[2913,'price_range']='(1000,2500]'
+		train_agg['price_range']=train_agg['price_range'].astype('category')
+		train_agg[train_agg['price_range'].isna()]
+		train_agg[train_agg.index==2913]
+
+		#ok, we've fixed that missing value for train_agg. Now merge with x_train
+		x_train = pd.merge(x_train,train_agg[['item_id','price_range']],on='item_id',how='left')
+		x_train[x_train['price_range'].isna()]
+		x_val = pd.merge(x_val,train_agg[['item_id','price_range']],on='item_id',how='left')
+		x_val[x_val['price_range'].isna()]
+		x_test.shape
+		x_test = pd.merge(x_test,train_agg[['item_id','price_range']],on='item_id',how='left')
+
+		#print  'fraction rows with NaN price range in x_test:',1.0*x_test[x_test['price_range'].isna()].shape[0] / x_test.shape[0] 
+		# Two choices: 1. Ignore these small unkowns, let the BDT do its best with other known features. 2. Lets predict these new items with the average sales count from the month before, as the best case scenario.
+	
+		return x_train,x_val,x_test
+
+	
+	def mapTargetEnc(self,x_train,y_train,x_val,x_test,Regularize):
+
+		# # Target encode with KFold reg
+
+		#add target back to x_train
+		df = pd.merge(x_train,y_train.to_frame(),left_index=True,right_index=True,how='left')
+		#introduce price_range target encoding: price_range_cnt_month
+		df_temp=df.groupby('price_range',as_index=False).agg({'shop_item_cnt_month':'sum'}).rename(columns={'shop_item_cnt_month':'price_range_cnt_month'})
+		df = pd.merge(df,df_temp,on='price_range',how='left')
+
+		Reg=''
+		if(Regularize):
+			if(self.targEnc_to_Reg.items()):print 'Regularizing target encoding!'
+		  	Reg='_kFold' #this determines the columns to be mapped to val and test. 
+		  	kf = KFold(5,shuffle=True,random_state=1234)
+		  	for key,value in self.targEnc_to_Reg.items():
+				#initialize
+				df[value+'_cnt_month_kFold'] = df[value+'_cnt_month']
+
+				#let's use median of the mean (per feat) for global stat for replacing NaN. can experiment later using min, mean, etc.
+				replaceNaN = df.groupby(key)[value+'_cnt_month'].mean().median()
+				self.NaN_targEnc.update({value:replaceNaN})
+				for tr_ind,val_ind in kf.split(df):
+					df_tr, df_val = df.iloc[tr_ind],df.iloc[val_ind]
+					feat_target_sum = df_tr.groupby(key)['shop_item_cnt_month'].sum()
+					df_val[value+'_cnt_month_kFold'] = df_val[key].map(feat_target_sum)  
+					df_val[value+'_cnt_month_kFold'].fillna(replaceNaN, inplace=True)
+					df.at[val_ind,value+'_cnt_month_kFold'] = df_val[value+'_cnt_month_kFold'] 
+		x_train = df
+
+		# map x_train targ_enc_kFol to x_val
+		df = x_val
+		for key,value in self.targEnc_to_Reg.items():
+		    print 'x_val: adding target encoding:',value+'_cnt_month'+Reg
+		    df_temp = x_train.groupby(key)[value+'_cnt_month'+Reg].mean()
+		    df_temp = df[key].map(df_temp)
+		    df[value+'_cnt_month'+Reg] = df_temp
+		    df[value+'_cnt_month'+Reg].fillna(self.NaN_targEnc[value], inplace=True)   
+		x_val = df
+
+		# map x_train targ_enc_kFol to x_test
+		df = x_test
+		for key,value in self.targEnc_to_Reg.items():
+		    print 'x_test: adding target encoding:',value
+		    df_temp = x_train.groupby(key)[value+'_cnt_month'+Reg].mean()
+		    df_temp = df[key].map(df_temp)
+		    df[value+'_cnt_month'+Reg] = df_temp
+		    df[value+'_cnt_month'+Reg].fillna(self.NaN_targEnc[value], inplace=True)    
+		x_test = df
+
+		return x_train,x_val,x_test
+
+
 	# def checkOutliers(self):
-
-	# def clipSalesCount(self):
-
-	# def addPriceRange(self):
 
 	# def addDiffLagColums(self)
 

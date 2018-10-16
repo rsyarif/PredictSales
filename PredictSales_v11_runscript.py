@@ -15,7 +15,7 @@ import utility.utility as ut
 from preprocessing.createSets import *
 from preprocessing.Sets import Sets
 
-from sklearn.model_selection import KFold
+from utility.ML import ML
 
 ########### switches ################################
 
@@ -124,10 +124,12 @@ opt = {
         'col_targets':col_targets,
         'meanEncode':meanEncode,
         'meanEncodeCol':meanEncodeCol,
+        'targEnc_to_Reg':targEnc_to_Reg,
+        'NaN_targEnc':NaN_targEnc,
         } 
 
 
-clipTarget = True
+#clipTarget = True
 lowerClip = 0
 upperClip = 20
 if target=='shop_item_cnt_month_diff(0-1)':
@@ -154,184 +156,57 @@ x_train, y_train = Sets.createTrainSet()
 x_val, y_val = Sets.createValSet()
 x_test = Sets.createTestSet()
 
-
-# # Adding price category to train,val, test
-
-train = data['sales_train']
-print 'train.shape:',train.shape
-
-#Aggregate train by 'item_price' and take __minimum__ of price range category
-train_agg = train.groupby(['item_id'], as_index=False).agg({'price_range':'min'})
-train_agg[train_agg['price_range'].isna()]
-
-#We're gonna do a hack. Change format to string, fill missing value, then change to 'category'
-train_agg['price_range']=train_agg['price_range'].astype('string')
-train_agg[train_agg['price_range']=='nan']
-train[train['item_id']==2973]['price_range'].unique()
-
-#It seems all of item 2973 are priced (1000,2500], let go ahead and fix the missing value
-train_agg.at[2913,'price_range']='(1000,2500]'
-train_agg['price_range']=train_agg['price_range'].astype('category')
-train_agg[train_agg['price_range'].isna()]
-train_agg[train_agg.index==2913]
-
-#ok, we've fixed that missing value for train_agg. Now merge with x_train
-x_train = pd.merge(x_train,train_agg[['item_id','price_range']],on='item_id',how='left')
-x_train[x_train['price_range'].isna()]
-x_val = pd.merge(x_val,train_agg[['item_id','price_range']],on='item_id',how='left')
-x_val[x_val['price_range'].isna()]
-x_test.shape
-x_test = pd.merge(x_test,train_agg[['item_id','price_range']],on='item_id',how='left')
-#print  'fraction rows with NaN price range in x_test:',1.0*x_test[x_test['price_range'].isna()].shape[0] / x_test.shape[0] 
-# Two choices: 1. Ignore these small unkowns, let the BDT do its best with other known features. 2. Lets predict these new items with the average sales count from the month before, as the best case scenario.
+x_train,x_val,x_test = Sets.addPriceRange(x_train,x_val,x_test)
+y_train,y_val = Sets.clipSalesCount(y_train,y_val,lowerClip,upperClip)
 
 #combine 2013+2014
 # x_train  = pd.concat([x_train, x_val], ignore_index=True)
 # y_train  = pd.concat([y_train, y_val], ignore_index=True)
 # print x_train.shape
 
+x_train,x_val,x_test = Sets.mapTargetEnc(x_train,y_train,x_val,x_test,Regularize=Regularize)
 
-# # Clip y_train, y_val
+# dropping unnecessary columns
+x_train = x_train.drop(columns=['shop_item_id'])
+x_val = x_val.drop(columns=['shop_item_id'])
+x_test = x_test.drop(columns=['shop_item_id'])
+# make sure features are the same across sets
+x_train = x_train.drop(columns=list(set(x_train.columns.values)-set(x_test.columns.values)))
+x_val = x_val.drop(columns=list(set(x_val.columns.values)-set(x_test.columns.values)))
 
-
-nbins=20
-
-y_train_clip = np.clip(y_train,lowerClip,upperClip)
-y_val_clip = np.clip(y_val,lowerClip,upperClip)
-print 'Sum y_train before clip [{}-{}]:'.format(lowerClip,upperClip),np.sum(y_train)
-print 'Sum y_val before clip[{}-{}]:'.format(lowerClip,upperClip), np.sum(y_val)
-if(clipTarget):
-    y_train=y_train_clip
-    y_val=y_val_clip
-print 'Sum y_train after clip[{}-{}]:'.format(lowerClip,upperClip),np.sum(y_train)
-print 'Sum y_val after clip[{}-{}]:'.format(lowerClip,upperClip), np.sum(y_val)
-
-
-# # Target encode with KFold reg
-
-#add target back to x_train
-df = pd.merge(x_train,y_train.to_frame(),left_index=True,right_index=True,how='left')
-#introduce price_range target encoding: price_range_cnt_month
-df_temp=df.groupby('price_range',as_index=False).agg({'shop_item_cnt_month':'sum'}).rename(columns={'shop_item_cnt_month':'price_range_cnt_month'})
-df = pd.merge(df,df_temp,on='price_range',how='left')
-
-Reg=''
-if(Regularize):
-  if(targEnc_to_Reg.items()):print 'Regularizing target encoding!'
-  Reg='_kFold' #this determines the columns to be mapped to val and test. 
-  kf = KFold(5,shuffle=True,random_state=1234)
-  for key,value in targEnc_to_Reg.items():
-      #initialize
-      df[value+'_cnt_month_kFold'] = df[value+'_cnt_month']
-
-      #let's use median of the mean (per feat) for global stat for replacing NaN. can experiment later using min, mean, etc.
-      replaceNaN = df.groupby(key)[value+'_cnt_month'].mean().median()
-      NaN_targEnc.update({value:replaceNaN})
-      for tr_ind,val_ind in kf.split(df):
-          df_tr, df_val = df.iloc[tr_ind],df.iloc[val_ind]
-          feat_target_sum = df_tr.groupby(key)['shop_item_cnt_month'].sum()
-          df_val[value+'_cnt_month_kFold'] = df_val[key].map(feat_target_sum)  
-          df_val[value+'_cnt_month_kFold'].fillna(replaceNaN, inplace=True)
-          df.at[val_ind,value+'_cnt_month_kFold'] = df_val[value+'_cnt_month_kFold'] 
-x_train = df
-
-# map x_train targ_enc_kFol to x_val
-df = x_val
-for key,value in targEnc_to_Reg.items():
-    print 'x_val: adding target encoding:',value+'_cnt_month'+Reg
-    df_temp = x_train.groupby(key)[value+'_cnt_month'+Reg].mean()
-    df_temp = df[key].map(df_temp)
-    df[value+'_cnt_month'+Reg] = df_temp
-    df[value+'_cnt_month'+Reg].fillna(NaN_targEnc[value], inplace=True)   
-x_val = df
-
-# map x_train targ_enc_kFol to x_test
-df = x_test
-for key,value in targEnc_to_Reg.items():
-    print 'x_test: adding target encoding:',value
-    df_temp = x_train.groupby(key)[value+'_cnt_month'+Reg].mean()
-    df_temp = df[key].map(df_temp)
-    df[value+'_cnt_month'+Reg] = df_temp
-    df[value+'_cnt_month'+Reg].fillna(NaN_targEnc[value], inplace=True)    
-x_test = df
-
-x_train_ = x_train.drop(columns=['shop_item_id'])
-x_val_ = x_val.drop(columns=['shop_item_id'])
-x_test_ = x_test.drop(columns=['shop_item_id'])
-
-x_train_ = x_train_.drop(columns=list(set(x_train_.columns.values)-set(x_test_.columns.values)))
-x_val_ = x_val_.drop(columns=list(set(x_val_.columns.values)-set(x_test_.columns.values)))
-
-
-print 'x_train.shape:',x_train_.shape
-print 'x_val.shape:',x_val_.shape
-print 'x_test.shape:',x_test_.shape 
-#print 'train:',x_train_.columns.values
-#print 'test:',x_test_.columns.values
-assert (set(x_train_.columns.values)-set(x_test_.columns.values)==set([])), "train/val has more features than test!"
-#print 'train-test:',set(x_train_.columns.values)-set(x_test_.columns.values)
-#print 'val-test:',set(x_val_.columns.values)-set(x_test_.columns.values)
-
+print 'x_train.shape:',x_train.shape
+print 'x_val.shape:',x_val.shape
+print 'x_test.shape:',x_test.shape 
+assert (set(x_train.columns.values)-set(x_test.columns.values)==set([])), "train/val has more features than test!"
 
 # # Model Training
 
-### Boosted Decision Tree (lightgbm)
+dataset = {
+            'x_train':x_train,
+            'x_val':x_val,
+            'x_test':x_test,
+            'y_train':y_train,
+            'y_val':y_val,
+            }
 
-import lightgbm as lgb
-from sklearn.metrics import r2_score
+ml = ML(**dataset)
 
-evals_result={}
+model,evals_result = ml.runBDT_lightgbm(
+                                          lgb_params = {
+                                                         'feature_fraction': .75,
+                                                         'metric': 'rmse',
+                                                         'nthread':4, 
+                                                         'min_data_in_leaf': 2**7, 
+                                                         'bagging_fraction': 0.75,#0.75 
+                                                         'learning_rate': 0.03, 
+                                                         'objective': 'mse', 
+                                                         'bagging_seed': 2**7, 
+                                                         'num_leaves': 2**7,
+                                                         'bagging_freq':1,
+                                                         'verbose':1,
+                                                        })
 
-lgb_train = lgb.Dataset(x_train_, label=y_train)
-lgb_test = lgb.Dataset(x_val_, label=y_val)
-
-lgb_params = {
-               'feature_fraction': .75,
-               'metric': 'rmse',
-               'nthread':4, 
-               'min_data_in_leaf': 2**7, 
-               'bagging_fraction': 0.75,#0.75 
-               'learning_rate': 0.03, 
-               'objective': 'mse', 
-               'bagging_seed': 2**7, 
-               'num_leaves': 2**7,
-               'bagging_freq':1,
-               'verbose':1,
-              }
-
-num_boost_round = 1000
-verbose_eval = num_boost_round/10
-model = lgb.train(lgb_params, 
-                  lgb_train,
-                  valid_sets=[lgb_train, lgb_test],
-                  valid_names=['train','eval'],
-                  num_boost_round=num_boost_round,
-                  evals_result=evals_result,
-                  early_stopping_rounds=200,
-                  verbose_eval=verbose_eval)
-
-#print 'evals_result = ',evals_result
-
-# print('Plot metrics recorded during training...')
-# ax = lgb.plot_metric(evals_result, metric='rmse')
-# if(saveplots):plt.savefig(saveFolder+"/"+"lgb_plot_metric_"+saveName+".pdf")
-# #plt.show()
-
-# print('Plot feature importances...')
-# ax = lgb.plot_importance(model, max_num_features=x_test.shape[1])
-# ax.figure.set_size_inches(6.4*2,4.8*3)
-# if(saveplots):plt.savefig(saveFolder+"/"+"lgb_plot_importance_"+saveName+".pdf")
-# plt.show()
-
-pred_lgb = model.predict(x_train_)
-print('Training R-squared for LightGBM is %f' % r2_score(y_train, pred_lgb))
-pred_lgb = model.predict(x_val_)
-print('Validation R-squared for LightGBM is %f' % r2_score(y_val, pred_lgb))
-
-
-# # Predict with test data¶
-
-pred = model.predict(x_test_)
+pred = ml.predict()
 
 pred_submit = pred
 
@@ -355,11 +230,7 @@ if target =='shop_item_cnt_month_diff(0-1)':
 pred_submit = np.clip(pred_submit,0,20)
     
 print 'pred_submit:',pred_submit
-
-
 print 'total sales pred:',np.sum(pred_submit), ', mean:',np.mean(pred_submit)
-hist_pred = plt.hist(pred_submit,nbins,log=True)
-
 
 ### adhoc scaling
 #pred_submit = np.floor(pred_submit)
@@ -372,27 +243,21 @@ hist_pred = plt.hist(pred_submit,nbins,log=True)
 # # Validation with yearly trend
 
 y_test = pd.DataFrame(pred_submit,columns=['item_cnt_month'])
-#saveName='constant_0p38'
-#saveplots=True
-
 total_item_cnt_2013 = data['sales_2013'].groupby(['date_block_num','Y_M'])['item_cnt_day'].sum().values
 total_item_cnt_2014 = data['sales_2014'].groupby(['date_block_num','Y_M'])['item_cnt_day'].sum().values
 total_item_cnt_2015 = data['sales_2015'].groupby(['date_block_num','Y_M'])['item_cnt_day'].sum().values
 yearlySales = [total_item_cnt_2013,total_item_cnt_2014,total_item_cnt_2015]
-
 kwargs = {'yearlySales':yearlySales,
         'y_test':y_test,
         'saveName':saveName,
         'saveplots':saveplots,
         'saveFolder':saveFolder}
-
 # ut.plotYearly(**kwargs)
 # ut.plotYearly_v2(**kwargs)
 # ut.plotResidual(**kwargs)
 
 
 # # Prepare submission file
-
 test_sorted = data['test'].sort_values(by=groupby_list).reset_index(drop=True)
 submit = pd.concat([test_sorted,y_test],axis=1)
 submit = submit.sort_values(by="ID").reset_index(drop=True)
