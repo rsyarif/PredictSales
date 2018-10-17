@@ -36,7 +36,7 @@ verbose=False
 lag_length = 3
 diff = True
 diffRel = True 
-item_cat_count_feat=False
+item_cat_count_feat=True
 
 target = 'shop_item_cnt_month'
 # target = 'shop_item_cnt_month_diff(0-1)'
@@ -44,30 +44,37 @@ target = 'shop_item_cnt_month'
 #these columns will be dropped in createTrain/Val/Test
 col_targets=[
              'shop_item_cnt_month',
-#              'shop_cnt_month',
-#              'item_cnt_month',
+             # 'shop_cnt_month',
+             # 'item_cnt_month',
+             # 'item_cat_cnt_month',
             ]
 if(diff):
     col_targets+[
 #                  'shop_item_cnt_month_diff(0-1)',
 #                  'shop_cnt_month_diff(0-1)',
 #                  'item_cnt_month_diff(0-1)',
+#                  'item__cat_cnt_month_diff(0-1)',
                 ]
 if(diffRel):
     col_targets+[
 #                  'shop_item_cnt_month_(0-1)/1',
 #                  'shop_cnt_month_(0-1)/1',
 #                  'item_cnt_month_(0-1)/1',
+#                  'item_cat_cnt_month_(0-1)/1',
                 ]
 
 ####### mean Encode (with Reg) #####
 
 meanEncode=True #this is just necessary condition for mean encoding. but need to turn on individual switches below to include columsn of target encoding.
-meanEncodeCol=[
+meanEncodeCol=[ #this is for lag features.
              'shop',
              'item',
-             'item_cat',
+             # 'item_cat',
             ]
+
+agg_targ = {'item_cnt_day':'sum'} #target_encoding!
+# agg_targ = {'item_cnt_day':'mean'} #target_encoding!
+
 Regularize = True
 enc_cnt_per_shop = False
 enc_cnt_per_item = False
@@ -96,7 +103,7 @@ col_to_keep = [
                 #'item_price',
                 'item_category_id',
                 'item_cnt_day',
-              ]
+                ]
 
 groupby_list = ['shop_id','item_id']
 
@@ -105,9 +112,6 @@ agg_dict = {
             'item_category_id':'mean',
             'item_cnt_day':'sum',
             }
-
-agg_targ = {'item_cnt_day':'sum'} #target_encoding!
-# agg_targ = {'item_cnt_day':'mean'} #target_encoding!
 
     
 opt = {
@@ -177,6 +181,9 @@ x_val = x_val.drop(columns=list(set(x_val.columns.values)-set(x_test.columns.val
 print 'x_train.shape:',x_train.shape
 print 'x_val.shape:',x_val.shape
 print 'x_test.shape:',x_test.shape 
+print 'x_test columns:' 
+for i,col in enumerate(x_test.columns.values): print ' '*3,i,col 
+print
 assert (set(x_train.columns.values)-set(x_test.columns.values)==set([])), "train/val has more features than test!"
 
 # # Model Training
@@ -206,7 +213,7 @@ model,evals_result = ml.runBDT_lightgbm(
                                                          'verbose':1,
                                                         })
 
-pred = ml.predict()
+pred = ml.predict(model)
 
 pred_submit = pred
 

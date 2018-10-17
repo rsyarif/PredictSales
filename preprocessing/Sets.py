@@ -56,6 +56,7 @@ class Sets:
 		print 'diffRel:',self.diffRel
 		print 'item_cat_count_feat :',self.item_cat_count_feat
 		print 'target:',self.target
+		print '\ntarget encoding:',self.agg_targ
 		print
 
 	def convertDatetime(self):
@@ -194,18 +195,17 @@ class Sets:
 		    #agg shop_item 
 		    shop_item_lag = df_lag.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month_lag_'+str(i)})
 		    shop_item_lag.drop(columns=['item_category_id'],inplace=True)
-		    #agg shop (mean encoding)
-		    if(self.meanEncode):shop_lag = df_lag[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month_lag_'+str(i)})
-		    #agg item (mean encoding)
-		    if(self.meanEncode):item_lag = df_lag[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month_lag_'+str(i)})
-		    #agg item_cat (mean encoding)
-		    if(self.item_cat_count_feat and self.meanEncode):itemcat_lag = df_lag[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month_lag_'+str(i)})
 
-		    #merge
 		    df = pd.merge(df,shop_item_lag,on=['shop_id','item_id'],how='left')
-		    if(self.meanEncode):df = pd.merge(df,shop_lag,on=['shop_id'],how='left')
-		    if(self.meanEncode):df = pd.merge(df,item_lag,on=['item_id'],how='left')
-		    if(self.item_cat_count_feat and self.meanEncode):df = pd.merge(df,itemcat_lag,on=['item_category_id'],how='left')
+
+			#agg and merge
+		    if(self.meanEncode):
+			    for col in self.meanEncodeCol:
+				    newcol = col
+				    if(col == 'item_cat'): col = 'item_category'
+				    lag = df_lag[[col+'_id','item_cnt_day']].groupby([col+'_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':newcol+'_cnt_month_lag_'+str(i)})
+				    df  = pd.merge(df,lag,on=[col+'_id'],how='left')
+
 
 		    return df
 
@@ -301,6 +301,7 @@ class Sets:
 
 	def clipSalesCount(self,y_train,y_val,lowerClip,upperClip):
 
+		print '\nClipping train and val targets [{}-{}]\n'.format(lowerClip,upperClip)
 		y_train_clip = np.clip(y_train,lowerClip,upperClip)
 		y_val_clip = np.clip(y_val,lowerClip,upperClip)
 		#print 'Sum y_train before clip [{}-{}]:'.format(lowerClip,upperClip),np.sum(y_train)
