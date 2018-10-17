@@ -36,7 +36,6 @@ verbose=False
 lag_length = 3
 diff = True
 diffRel = True 
-item_cat_count_feat=True
 
 target = 'shop_item_cnt_month'
 # target = 'shop_item_cnt_month_diff(0-1)'
@@ -68,8 +67,8 @@ if(diffRel):
 meanEncode=True #this is just necessary condition for mean encoding. but need to turn on individual switches below to include columsn of target encoding.
 meanEncodeCol=[ #this is for lag features.
              'shop',
-             # 'item',
-             'item_cat',
+             'item',
+             # 'item_cat',
             ]
 
 agg_targ = {'item_cnt_day':'sum'} #target_encoding!
@@ -119,7 +118,7 @@ opt = {
         'lag_length':lag_length,
         'diff':diff,
         'diffRel':diffRel,
-        'item_cat_count_feat':item_cat_count_feat,
+        # 'item_cat_count_feat':item_cat_count_feat,
         'target':target,
         'col_to_keep':col_to_keep,
         'groupby_list':groupby_list,
