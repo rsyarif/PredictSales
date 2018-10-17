@@ -33,9 +33,10 @@ if(createSubmit): print "WILL CREATE SUBMIT FILE!"
 ############# Options/Args #########################
 
 verbose=False
-lag_length = 3
-diff = True
-diffRel = True 
+lag_length = 0
+diff = False
+diffRel = False 
+addPriceRange = True
 
 target = 'shop_item_cnt_month'
 # target = 'shop_item_cnt_month_diff(0-1)'
@@ -158,7 +159,7 @@ x_train, y_train = Sets.createTrainSet()
 x_val, y_val = Sets.createValSet()
 x_test = Sets.createTestSet()
 
-x_train,x_val,x_test = Sets.addPriceRange(x_train,x_val,x_test)
+if(addPriceRange):x_train,x_val,x_test = Sets.addPriceRange(x_train,x_val,x_test)
 y_train,y_val = Sets.clipSalesCount(y_train,y_val,lowerClip,upperClip)
 
 #combine 2013+2014

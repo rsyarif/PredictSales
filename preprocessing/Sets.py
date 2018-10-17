@@ -352,8 +352,9 @@ class Sets:
 		#add target back to x_train
 		df = pd.merge(x_train,y_train.to_frame(),left_index=True,right_index=True,how='left')
 		#introduce price_range target encoding: price_range_cnt_month
-		df_temp=df.groupby('price_range',as_index=False).agg({'shop_item_cnt_month':'sum'}).rename(columns={'shop_item_cnt_month':'price_range_cnt_month'})
-		df = pd.merge(df,df_temp,on='price_range',how='left')
+		if('price_range' in df.columns.values):
+			df_temp=df.groupby('price_range',as_index=False).agg({'shop_item_cnt_month':'sum'}).rename(columns={'shop_item_cnt_month':'price_range_cnt_month'})
+			df = pd.merge(df,df_temp,on='price_range',how='left')
 
 		Reg=''
 		if(Regularize):

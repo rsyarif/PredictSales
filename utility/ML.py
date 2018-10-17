@@ -1,5 +1,7 @@
 import lightgbm as lgb
 from sklearn.metrics import r2_score
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class ML:
@@ -48,15 +50,21 @@ class ML:
 		#print 'evals_result = ',evals_result
 
 		# print('Plot metrics recorded during training...')
-		# ax = lgb.plot_metric(evals_result, metric='rmse')
+		#ax = lgb.plot_metric(evals_result, metric='rmse')
 		# if(saveplots):plt.savefig(saveFolder+"/"+"lgb_plot_metric_"+saveName+".pdf")
-		# #plt.show()
+		#plt.show()
 
 		# print('Plot feature importances...')
-		# ax = lgb.plot_importance(model, max_num_features=x_test.shape[1])
+		#ax = lgb.plot_importance(model, max_num_features=self.x_test.shape[1])
 		# ax.figure.set_size_inches(6.4*2,4.8*3)
 		# if(saveplots):plt.savefig(saveFolder+"/"+"lgb_plot_importance_"+saveName+".pdf")
-		# plt.show()
+		#plt.show()
+
+		print 'feature importance:'
+		sorted_index = np.argsort(model.feature_importance())
+		for i in xrange(len(model.feature_name())-1,0-1,-1):
+			print ' '*3,(len(model.feature_name())-i), model.feature_name()[sorted_index[i]],':',model.feature_importance()[sorted_index[i]]
+
 
 		pred_lgb_tr = model.predict(self.x_train)
 		print('Training R-squared for LightGBM is %f' % r2_score(self.y_train, pred_lgb_tr))
@@ -66,11 +74,13 @@ class ML:
 		return model,evals_result
 
 
-	def predict(self):
+	def predict(self,lgb_model):
+
+		pred=[]
 
 		# # Predict with test data
 		try:
-			pred = model.predict(self.x_test)
+			pred = lgb_model.predict(self.x_test)
 		except Exception as e:
 			print ('Exception:',e,)
 			print ("Probably you haven't trained yet?")
