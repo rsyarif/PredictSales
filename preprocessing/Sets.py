@@ -35,7 +35,6 @@ class Sets:
 		self.lag_length = kwargs['lag_length']
 		self.diff = kwargs['diff']
 		self.diffRel = kwargs['diffRel']
-		self.item_cat_count_feat = kwargs['item_cat_count_feat']
 		self.target = kwargs['target']
 
 		self.col_to_keep = kwargs['col_to_keep']
@@ -54,7 +53,6 @@ class Sets:
 		print 'lag_length:',self.lag_length
 		print 'diff:',self.diff
 		print 'diffRel:',self.diffRel
-		print 'item_cat_count_feat :',self.item_cat_count_feat
 		print 'target:',self.target
 		print '\ntarget encoding:',self.agg_targ
 		print
@@ -177,7 +175,7 @@ class Sets:
 		#agg item (mean encoding)
 		if(self.meanEncode):item = dataset[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
 		#agg item_cat (mean encoding)
-		if(self.item_cat_count_feat and self.meanEncode):itemcat = dataset[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
+		if(self.meanEncode):itemcat = dataset[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
 
 		#add new columns: shop_item_id
 		df['shop_item_id']=df['shop_id'].astype('string')+'_'+df['item_id'].astype('string')
@@ -185,7 +183,7 @@ class Sets:
 		#merge
 		if(self.meanEncode):df = pd.merge(df,shop,on=['shop_id'],how='left')
 		if(self.meanEncode):df = pd.merge(df,item,on=['item_id'],how='left')
-		if(self.item_cat_count_feat and self.meanEncode):df = pd.merge(df,itemcat,on=['item_category_id'],how='left')
+		if(self.meanEncode):df = pd.merge(df,itemcat,on=['item_category_id'],how='left')
 
 		return df
 
@@ -221,7 +219,6 @@ class Sets:
 		    
 		    #self.diffs
 		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
-		        if(not self.item_cat_count_feat and col=='item_cat'): continue #skip item_cat if this feat is not turned on 
 
 		        if i==1:
 		        	if(year==2015):continue #2015 dont have lag_0 features

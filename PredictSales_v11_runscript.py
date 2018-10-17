@@ -68,8 +68,8 @@ if(diffRel):
 meanEncode=True #this is just necessary condition for mean encoding. but need to turn on individual switches below to include columsn of target encoding.
 meanEncodeCol=[ #this is for lag features.
              'shop',
-             'item',
-             # 'item_cat',
+             # 'item',
+             'item_cat',
             ]
 
 agg_targ = {'item_cnt_day':'sum'} #target_encoding!
