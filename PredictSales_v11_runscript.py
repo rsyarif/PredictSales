@@ -118,7 +118,6 @@ opt = {
         'lag_length':lag_length,
         'diff':diff,
         'diffRel':diffRel,
-        # 'item_cat_count_feat':item_cat_count_feat,
         'target':target,
         'col_to_keep':col_to_keep,
         'groupby_list':groupby_list,
