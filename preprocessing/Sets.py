@@ -290,6 +290,8 @@ class Sets:
 		#add new columns: shop_item_id
 		x_test['shop_item_id']=x_test['shop_id'].astype('string')+'_'+x_test['item_id'].astype('string')
 
+		x_test = self.addIsItemNew(x_test,dateblock=34)
+
 		x_test = self.addLagFeatures(x_test,2015)
 		x_test = x_test.fillna(0)
 		x_test.drop(columns=['ID'],inplace=True)
