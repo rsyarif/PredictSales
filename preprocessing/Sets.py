@@ -248,7 +248,9 @@ class Sets:
 		y_train = x_train_shop_item[self.target]
 
 		#remove self.targets(s):
-		x_train = x_train_shop_item.drop(columns=self.col_targets)
+		#x_train = x_train_shop_item.drop(columns=self.col_targets)
+
+		x_train = x_train_shop_item
 
 		if(self.verbose):print 'x_train.shape :',x_train.shape
 		if(self.verbose):print 'y_train.shape :',y_train.shape
@@ -269,7 +271,9 @@ class Sets:
 		y_val = x_val_shop_item[self.target]
 
 		#remove self.targets(s):
-		x_val = x_val_shop_item.drop(columns=self.col_targets)
+		#x_val = x_val_shop_item.drop(columns=self.col_targets)
+
+		x_val = x_val_shop_item
 
 		if(self.verbose):print 'x_val.shape :',x_val.shape
 		if(self.verbose):print 'y_val.shape :',y_val.shape
@@ -350,7 +354,11 @@ class Sets:
 		# # Target encode with KFold reg
 
 		#add target back to x_train
-		df = pd.merge(x_train,y_train.to_frame(),left_index=True,right_index=True,how='left')
+		# df = pd.merge(x_train,y_train.to_frame(),left_index=True,right_index=True,how='left')
+		# if(self.verbose):print 'x_train.shape',x_train.shape
+		# if(self.verbose):print 'y_train.shape',y_train.shape
+		# if(self.verbose):print 'df.shape',df.shape
+		df = x_train
 		#introduce price_range target encoding: price_range_cnt_month
 		if('price_range' in df.columns.values):
 			df_temp=df.groupby('price_range',as_index=False).agg({'shop_item_cnt_month':'sum'}).rename(columns={'shop_item_cnt_month':'price_range_cnt_month'})
@@ -397,6 +405,77 @@ class Sets:
 		x_test = df
 
 		return x_train,x_val,x_test
+
+
+	def addLagFeatures_v2(self,df,dateblock):
+
+		#introduce lag features.
+		for i in xrange(1,self.lag_length+1):
+		    df_lag = self.sales_train[ ( self.sales_train['date_block_num']==(dateblock-i) )]
+		    df_lag = df_lag[self.col_to_keep]
+
+		    df = self.aggLagColumns(df,df_lag,i)
+		    
+		    #self.diffs
+		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
+
+		        if i==1:
+		        	if(dateblock==34):continue #2015 dont have lag_0 features
+		        	if(self.diff):
+		        		df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = df[col+'_cnt_month'] - df[col+'_cnt_month_lag_'+str(i)]
+		        	if(self.diffRel):
+		        		df[col+'_cnt_month_({}-{})/{}'.format(str(i-1),str(i),str(i))] = df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] / (df[col+'_cnt_month_lag_'+str(i)]+1e-7)   
+		        if i>=2:
+		            if(self.diff):
+		            	df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = df[col+'_cnt_month_lag_'+str(i-1)] - df[col+'_cnt_month_lag_'+str(i)]   
+		        	if(self.diffRel):df[col+'_cnt_month_({}-{})/{}'.format(str(i-1),str(i),str(i))] = df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] / (df[col+'_cnt_month_lag_'+str(i)]+1e-7)   
+
+		return df
+
+
+	def addIsItemNew(self,df,dateblock):
+		df_now = df[['shop_id','item_id']]
+		df_prev = self.sales_train[self.sales_train['date_block_num']==dateblock-1].groupby(['shop_id','item_id'],as_index=False).agg({'item_cnt_day':'sum'})
+
+		df_now['isItemNew'] = df_now['item_id'].apply(lambda x: False if x in df_prev['item_id'].values else True)
+		#df_now['IsItemNew'] = ~df_now['item_id'].isin(df_prev['item_id'].values) # '~' assigns a NOT. This is just for notwes.
+		
+		df = pd.merge(df,df_now[['item_id','isItemNew']],on='item_id',how='left')
+
+		return df
+
+	def createDateblockSet(self,dateblocks):
+
+		x_ = pd.DataFrame([])
+		y_ = pd.Series([])
+
+		for dateblock in dateblocks:		
+			if(self.verbose): print 'processing dateblock:',dateblock
+
+			x = self.sales_train[ (self.sales_train['date_block_num']==dateblock) ]
+			x = x[self.col_to_keep]
+
+			x_shop_item = self.aggAddNewColumns(x)
+			x_shop_item = self.addIsItemNew(x_shop_item,dateblock)
+			x_shop_item = self.addLagFeatures_v2(x_shop_item,dateblock)
+
+			x_shop_item.fillna(0,inplace=True)
+
+
+			if(self.verbose): print ' '*3,'x_shop_item.shape', x_shop_item.shape
+
+			x_ = x_.append(x_shop_item,sort=False)
+
+		#pick (meta)self.target            
+		y_ = x_[self.target]
+
+		#remove self.targets(s):
+		#x_train_ = x_train_.drop(columns=self.col_targets)
+
+		if(self.verbose):print 'x.shape :',x_.shape
+		if(self.verbose):print 'y.shape :',y_.shape
+
+		return x_, y_
 
 
 	# def checkOutliers(self):
