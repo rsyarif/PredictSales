@@ -437,8 +437,8 @@ class Sets:
 		df_now = df[['shop_id','item_id']]
 		df_prev = self.sales_train[self.sales_train['date_block_num']==dateblock-1].groupby(['shop_id','item_id'],as_index=False).agg({'item_cnt_day':'sum'})
 
-		df_now['isItemNew'] = df_now['item_id'].apply(lambda x: False if x in df_prev['item_id'].values else True)
-		#df_now['IsItemNew'] = ~df_now['item_id'].isin(df_prev['item_id'].values) # '~' assigns a NOT. This is just for notwes.
+		#df_now['isItemNew'] = df_now['item_id'].apply(lambda x: False if x in df_prev['item_id'].values else True)
+		df_now['IsItemNew'] = ~df_now['item_id'].isin(df_prev['item_id'].values) # '~' assigns a NOT. This is just for notwes.
 		
 		df = pd.merge(df,df_now[['item_id','isItemNew']],on='item_id',how='left')
 
