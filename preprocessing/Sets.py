@@ -7,10 +7,6 @@ class Sets:
 
 	def __init__(self,**kwargs):
 
-		# self.sales_2013 = kwargs['sales_2013']
-		# self.sales_2014 = kwargs['sales_2014']
-		# self.sales_2015 = kwargs['sales_2015']
-
 		self.verbose = kwargs['verbose']
 
 		path = '/Users/rizki/Dropbox/Coursera/AML_HowToKaggle/FinalProject/PredictSales/all/'
@@ -34,27 +30,10 @@ class Sets:
 		#options
 		self.lag_length = kwargs['lag_length']
 		self.diff = kwargs['diff']
-		self.diffRel = kwargs['diffRel']
-		self.target = kwargs['target']
-
-		self.col_to_keep = kwargs['col_to_keep']
-		self.groupby_list= kwargs['groupby_list']
-		self.agg_dict= kwargs['agg_dict']
-		self.agg_targ= kwargs['agg_targ']
-		self.col_targets= kwargs['col_targets']
-
-		self.meanEncode = kwargs['meanEncode']
-		self.meanEncodeCol=kwargs['meanEncodeCol']
-
-		self.targEnc_to_Reg=kwargs['targEnc_to_Reg']
-		self.NaN_targEnc=kwargs['NaN_targEnc']
 
 		print
 		print 'lag_length:',self.lag_length
 		print 'diff:',self.diff
-		print 'diffRel:',self.diffRel
-		print 'target:',self.target
-		print '\ntarget encoding:',self.agg_targ
 		print
 
 	def convertDatetime(self):
@@ -180,6 +159,35 @@ class Sets:
 		self.sales_train['price_range'] = s_binned
 
 
+	def binPrice_v2(self,bin_edges,df,date_block_num):
+		#count in each bins
+
+		if(self.verbose):print '\nCounting based on the defined bins:\n'
+		for i,ibin in enumerate(bin_edges):    
+		    if i==len(bin_edges)-1: 
+		        if(self.verbose):print '{}-:'.format(bin_edges[i],bin_edges[i]),
+		        if(self.verbose):print df[(df[date_block_num]>=bin_edges[i])].shape[0]
+		        continue
+		    else:        
+		        if(self.verbose):print '{}-{} :'.format(bin_edges[i],bin_edges[i+1]),
+		        if(self.verbose):print df[(df[date_block_num]>=bin_edges[i])&(df[date_block_num]<bin_edges[i+1])].shape[0]
+
+		bins,labels = self.getBins(bin_edges)
+
+		if(self.verbose): print 'bins:',bins            
+		if(self.verbose): print 'labels:',labels           
+
+		df_bins = pd.IntervalIndex.from_tuples(bins)
+		s_binned = pd.cut(df[date_block_num],bins=df_bins,labels=labels,include_lowest=True)
+
+		if(self.verbose):
+			print "\ncheck for out of bound / NaN binnings (index, item_id, price):"
+			print 'Index:',s_binned[s_binned.isna()].index.values, 'total:',len(s_binned[s_binned.isna()].index.values) 
+			print 'item_price:',df[s_binned.isna()][date_block_num].values
+
+		return s_binned
+
+
 	def splitDataByYear(self):
 		#split by year
 
@@ -232,143 +240,6 @@ class Sets:
 				if(self.verbose):print 'Found no duplicates in {}'.format(name)
 
 		return dup_ids
-
-
-	def aggAddNewColumns(self,dataset):
-		#target features:
-
-		#agg shop_item 
-		df = dataset.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month'})
-		#agg shop (mean encoding)
-		if(self.meanEncode):shop = dataset[['shop_id','item_cnt_day']].groupby(['shop_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'shop_cnt_month'})
-		#agg item (mean encoding)
-		if(self.meanEncode):item = dataset[['item_id','item_cnt_day']].groupby(['item_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cnt_month'})
-		#agg item_cat (mean encoding)
-		if(self.meanEncode):itemcat = dataset[['item_category_id','item_cnt_day']].groupby(['item_category_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':'item_cat_cnt_month'})
-
-		#add new columns: shop_item_id
-		df['shop_item_id']=df['shop_id'].astype('string')+'_'+df['item_id'].astype('string')
-
-		#merge
-		if(self.meanEncode):df = pd.merge(df,shop,on=['shop_id'],how='left')
-		if(self.meanEncode):df = pd.merge(df,item,on=['item_id'],how='left')
-		if(self.meanEncode):df = pd.merge(df,itemcat,on=['item_category_id'],how='left')
-
-		return df
-
-
-	def aggLagColumns(self,df,df_lag,i):
-
-		    #agg shop_item 
-		    shop_item_lag = df_lag.groupby(self.groupby_list,as_index=False).agg(self.agg_dict).rename(columns={'item_cnt_day':'shop_item_cnt_month_lag_'+str(i)})
-		    shop_item_lag.drop(columns=['item_category_id'],inplace=True)
-
-		    df = pd.merge(df,shop_item_lag,on=['shop_id','item_id'],how='left')
-
-			#agg and merge
-		    if(self.meanEncode):
-			    for col in self.meanEncodeCol:
-				    newcol = col
-				    if(col == 'item_cat'): col = 'item_category'
-				    lag = df_lag[[col+'_id','item_cnt_day']].groupby([col+'_id'],as_index=False).agg(self.agg_targ).rename(columns={'item_cnt_day':newcol+'_cnt_month_lag_'+str(i)})
-				    df  = pd.merge(df,lag,on=[col+'_id'],how='left')
-
-
-		    return df
-
-
-	def addLagFeatures(self,df,year):
-
-		#introduce lag features 10 months behind.
-		for i in xrange(1,self.lag_length+1):
-		    df_lag = self.sales_train[ (self.sales_train['year']==year) & ( self.sales_train['month']==(11-i) )]
-		    df_lag = df_lag[self.col_to_keep]
-
-		    df = self.aggLagColumns(df,df_lag,i)
-		    
-		    #self.diffs
-		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
-
-		        if i==1:
-		        	if(year==2015):continue #2015 dont have lag_0 features
-		        	if(self.diff):
-		        		df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = df[col+'_cnt_month'] - df[col+'_cnt_month_lag_'+str(i)]
-		        	if(self.diffRel):
-		        		df[col+'_cnt_month_({}-{})/{}'.format(str(i-1),str(i),str(i))] = df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] / (df[col+'_cnt_month_lag_'+str(i)]+1e-7)   
-		        if i>=2:
-		            if(self.diff):
-		            	df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = df[col+'_cnt_month_lag_'+str(i-1)] - df[col+'_cnt_month_lag_'+str(i)]   
-		        	if(self.diffRel):df[col+'_cnt_month_({}-{})/{}'.format(str(i-1),str(i),str(i))] = df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] / (df[col+'_cnt_month_lag_'+str(i)]+1e-7)   
-
-		return df
-
-
-	def createTrainSet(self):
-
-		x_train = self.sales_2013[self.sales_2013['month']==11]
-		x_train = x_train[self.col_to_keep]
-
-		x_train_shop_item = self.aggAddNewColumns(x_train)
-		x_train_shop_item = self.addLagFeatures(x_train_shop_item,2013)
-
-		x_train_shop_item.fillna(0,inplace=True)
-
-		#pick (meta)self.target            
-		y_train = x_train_shop_item[self.target]
-
-		#remove self.targets(s):
-		#x_train = x_train_shop_item.drop(columns=self.col_targets)
-
-		x_train = x_train_shop_item
-
-		if(self.verbose):print 'x_train.shape :',x_train.shape
-		if(self.verbose):print 'y_train.shape :',y_train.shape
-
-		return x_train, y_train
-
-
-	def createValSet(self):
-
-		x_val = self.sales_2014[self.sales_2014['month']==11]
-		x_val = x_val[self.col_to_keep]
-
-		x_val_shop_item = self.aggAddNewColumns(x_val)
-		x_val_shop_item = self.addLagFeatures(x_val_shop_item,2014)
-		x_val_shop_item.fillna(0,inplace=True)
-
-		#pick (meta)self.target            
-		y_val = x_val_shop_item[self.target]
-
-		#remove self.targets(s):
-		#x_val = x_val_shop_item.drop(columns=self.col_targets)
-
-		x_val = x_val_shop_item
-
-		if(self.verbose):print 'x_val.shape :',x_val.shape
-		if(self.verbose):print 'y_val.shape :',y_val.shape
-
-		return x_val,y_val
-
-
-	def createTestSet(self):
-
-		x_test = self.test.sort_values(by=self.groupby_list)
-
-		#add item_category_id.
-		x_test = pd.merge(x_test,self.items[['item_id','item_category_id']],on='item_id',how='left')
-		#add new columns: shop_item_id
-		x_test['shop_item_id']=x_test['shop_id'].astype('string')+'_'+x_test['item_id'].astype('string')
-
-		x_test = self.addIsItemNew(x_test,dateblock=34)
-
-		x_test = self.addLagFeatures(x_test,2015)
-		x_test = x_test.fillna(0)
-		x_test.drop(columns=['ID'],inplace=True)
-
-		if(self.verbose):print 'x_test.shape :',x_test.shape
-		#x_test.head()
-
-		return x_test
 
 
 	def clipSalesCount(self,y_train,y_val,lowerClip,upperClip):
@@ -478,78 +349,185 @@ class Sets:
 		return x_train,x_val,x_test
 
 
-	def addLagFeatures_v2(self,df,dateblock):
-
-		#introduce lag features.
-		for i in xrange(1,self.lag_length+1):
-		    df_lag = self.sales_train[ ( self.sales_train['date_block_num']==(dateblock-i) )]
-		    df_lag = df_lag[self.col_to_keep]
-
-		    df = self.aggLagColumns(df,df_lag,i)
-		    
-		    #self.diffs
-		    for col in ['shop_item']+self.meanEncodeCol:#,'shop','item','item_cat']:
-
-		        if i==1:
-		        	if(dateblock==34):continue #2015 dont have lag_0 features
-		        	if(self.diff):
-		        		df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = df[col+'_cnt_month'] - df[col+'_cnt_month_lag_'+str(i)]
-		        	if(self.diffRel):
-		        		df[col+'_cnt_month_({}-{})/{}'.format(str(i-1),str(i),str(i))] = df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] / (df[col+'_cnt_month_lag_'+str(i)]+1e-7)   
-		        if i>=2:
-		            if(self.diff):
-		            	df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] = df[col+'_cnt_month_lag_'+str(i-1)] - df[col+'_cnt_month_lag_'+str(i)]   
-		        	if(self.diffRel):df[col+'_cnt_month_({}-{})/{}'.format(str(i-1),str(i),str(i))] = df[col+'_cnt_month_diff({}-{})'.format(str(i-1),str(i))] / (df[col+'_cnt_month_lag_'+str(i)]+1e-7)   
-
-		return df
-
-
-	def addIsItemNew(self,df,dateblock):
+	# def addIsItemNew(self,df,dateblock): #depracated
 		
-		if(self.verbose):print 'adding isItemNew feature ...'
-		df_now = df
-		df_prev = self.sales_train[self.sales_train['date_block_num']==dateblock-1].groupby(['shop_id','item_id'],as_index=False).agg({'item_cnt_day':'sum'})
+	# 	if(self.verbose):print 'adding isItemNew feature ...'
+	# 	df_now = df
+	# 	df_prev = self.sales_train[self.sales_train['date_block_num']==dateblock-1].groupby(['shop_id','item_id'],as_index=False).agg({'item_cnt_day':'sum'})
 
-		df_now['isItemNew'] = df_now['item_id'].apply(lambda x: False if x in df_prev['item_id'].values else True)
-		#df_now['IsItemNew'] = ~df_now['item_id'].isin(df_prev['item_id'].values) # '~' assigns a NOT. This is just for notwes.
+	# 	df_now['isItemNew'] = df_now['item_id'].apply(lambda x: False if x in df_prev['item_id'].values else True)
+	# 	#df_now['IsItemNew'] = ~df_now['item_id'].isin(df_prev['item_id'].values) # '~' assigns a NOT. This is just for notwes.
 		
-		df = df_now
+	# 	df = df_now
 
-		return df
-
-
-	def createDateblockSet(self,dateblocks):
-
-		x_ = pd.DataFrame([])
-		y_ = pd.Series([])
-
-		for dateblock in dateblocks:		
-			if(self.verbose): print 'processing dateblock:',dateblock
-
-			x = self.sales_train[ (self.sales_train['date_block_num']==dateblock) ]
-			x = x[self.col_to_keep]
-
-			x_shop_item = self.aggAddNewColumns(x)
-			x_shop_item = self.addIsItemNew(x_shop_item,dateblock)
-			x_shop_item = self.addLagFeatures_v2(x_shop_item,dateblock)
-
-			x_shop_item.fillna(0,inplace=True)
+	# 	return df
 
 
-			if(self.verbose): print ' '*3,'x_shop_item.shape', x_shop_item.shape
+	def addDiff(self,df,item_diff_df,date_block_num,start_of_lag_cols,lag_length):
 
-			x_ = x_.append(x_shop_item,sort=False)
+		block_to_select = date_block_num
 
-		#pick (meta)self.target            
-		y_ = x_[self.target]
+		block_end = block_to_select+1
 
-		#remove self.targets(s):
-		#x_train_ = x_train_.drop(columns=self.col_targets)
+		begin_col = start_of_lag_cols+block_end-lag_length-1
+		end_col = start_of_lag_cols+block_end
 
-		if(self.verbose):print 'x.shape :',x_.shape
-		if(self.verbose):print 'y.shape :',y_.shape
+		x = pd.concat([df,item_diff_df.loc[:,'{}-{}'.format(date_block_num-lag_length,date_block_num-lag_length-1):'{}-{}'.format(date_block_num-1,date_block_num-2)]],axis=1)
+		#rename
+		new_col_names_diff = ['item_cnt_diff_lag_{}'.format(i) for i in range(lag_length,0,-1)]
+		col_names_diff = ['{}-{}'.format(i,i-1) for i in range(block_to_select-lag_length,block_to_select)]
+		d_diff = dict(zip(col_names_diff,new_col_names_diff))
+		x  = x.rename(d_diff, axis = 1)
 
-		return x_, y_
+		return x
+
+		print x.shape
+
+		if(self.verbose):print 'x.shape :',x.shape
+		if(self.verbose):print 'y.shape :',y.shape
+
+
+	def add_price_range(self,df,price_range,date_block_num,start_of_lag_cols,lag_length):
+
+		block_to_select = date_block_num
+
+		block_end = block_to_select+1
+
+		begin_col = start_of_lag_cols+block_end-lag_length-1
+		end_col = start_of_lag_cols+block_end
+
+		x = pd.concat([df,price_range.loc[:,'price_range_{}'.format(date_block_num-lag_length):'price_range_{}'.format(date_block_num-1)]],axis=1)
+
+		# #rename
+		new_col_names = ['price_range_lag_{}'.format(i) for i in range(lag_length,0,-1)]
+		col_names = ['price_range_{}'.format(i) for i in range(block_to_select-lag_length,block_to_select)]
+		d = dict(zip(col_names,new_col_names))
+		x  = x.rename(d, axis = 1)
+
+		return x
+
+		print x.shape
+
+		if(self.verbose):print 'x.shape :',x.shape
+		if(self.verbose):print 'y.shape :',y.shape
+
+
+	def add_isItemNew(self,df,isItemNew,date_block_num,start_of_lag_cols,lag_length):
+
+		block_to_select = date_block_num
+
+		block_end = block_to_select+1
+
+		begin_col = start_of_lag_cols+block_end-lag_length-1
+		end_col = start_of_lag_cols+block_end
+
+		x = pd.concat([df,isItemNew.loc[:,'isItemNew_{}'.format(date_block_num-lag_length):'isItemNew_{}'.format(date_block_num)]],axis=1)
+
+		# #rename
+		new_col_names = ['isItemNew_lag_{}'.format(i) for i in range(lag_length,-1,-1)]
+		col_names = ['isItemNew_{}'.format(i) for i in range(block_to_select-lag_length,block_to_select+1)]
+		d = dict(zip(col_names,new_col_names))
+		x  = x.rename(d, axis = 1)
+
+		return x
+
+		print x.shape
+
+		if(self.verbose):print 'x.shape :',x.shape
+		if(self.verbose):print 'y.shape :',y.shape
+
+
+	def createDateblockSet(self,df,date_block_num,start_of_lag_cols,lag_length):
+
+		if(self.verbose): print 'processing dateblock:',date_block_num
+
+		block_to_select = date_block_num
+
+		block_end = block_to_select+1
+
+		begin_col = start_of_lag_cols+block_end-lag_length-1
+		end_col = start_of_lag_cols+block_end
+
+		x = pd.concat([df.iloc[:,:start_of_lag_cols],df.iloc[:,begin_col:end_col]],axis=1)
+		#rename
+		new_col_names = ['item_cnt_lag_{}'.format(i) for i in range(lag_length,-1,-1)]
+		d = dict(zip(x.columns[start_of_lag_cols:],new_col_names))
+		x  = x.rename(d, axis = 1)
+
+		y = df[block_to_select]
+
+		print x.shape
+
+		if(self.verbose):print 'x.shape :',x.shape
+		if(self.verbose):print 'y.shape :',y.shape
+
+		return x, y
+
+
+	def addDiff_forTest(self,df,test,lag_length):
+
+		x = pd.concat([df,test.loc[:,'{}-{}'.format(33-lag_length+1,32-lag_length+1):'{}-{}'.format(33,32)]],axis=1)
+
+		new_col_names_diff = ['item_cnt_diff_lag_{}'.format(i) for i in range(lag_length,0,-1)]
+		col_names_diff = ['{}-{}'.format(i,i-1) for i in range(34-lag_length,34)]
+		d_diff = dict(zip(col_names_diff,new_col_names_diff))
+		x  = x.rename(d_diff, axis = 1)
+
+		return x
+
+	def add_isItemNew_forTest(self,df,test,lag_length):
+
+		x = df
+
+		x['isItemNew_lag_0'] = np.where((df['price_range_lag_1']==0) & (df['price_range_lag_2']==0),'Yes','No')
+		x['isItemNew_lag_0'] = x['isItemNew_lag_0'].astype('category')
+		x['isItemNew_lag_0'] = x['isItemNew_lag_0'].cat.codes
+
+		# x = pd.concat([df,test.loc[:,'isItemNew_{}'.format(33-lag_length+1):'isItemNew_{}'.format(33)]],axis=1)
+
+		# new_col_names = ['isItemNew_lag_{}'.format(i) for i in range(lag_length,-1,-1)]
+		# col_names = ['isItemNew_{}'.format(i) for i in range(34-lag_length-1,34)]
+		# d = dict(zip(col_names,new_col_names))
+		# x  = x.rename(d, axis = 1)
+
+		return x
+
+	def add_price_range_forTest(self,df,test,lag_length):
+
+		x = pd.concat([df,test.loc[:,'price_range_{}'.format(33-lag_length+1):'price_range_{}'.format(33)]],axis=1)
+
+		new_col_names = ['price_range_lag_{}'.format(i) for i in range(lag_length,0,-1)]
+		col_names = ['price_range_{}'.format(i) for i in range(34-lag_length,34)]
+		d = dict(zip(col_names,new_col_names))
+		x  = x.rename(d, axis = 1)
+
+		return x
+
+	def createFeaturesForTest(self,test,start_of_lag_cols,lag_length):
+
+		#merge test with our pivoted table
+		# test = self.test.merge(df, how = "left", on = ["shop_id", "item_id"]).fillna(0.0)
+
+		# Select relevant blocks
+		block_to_select = 33 #DO NOT CHANGE
+
+		block_end = block_to_select+1
+
+		begin_col = start_of_lag_cols+block_end-lag_length-1
+		end_col = start_of_lag_cols+block_end
+
+		test.drop(columns='ID',inplace=True)
+		x = pd.concat([test.iloc[:,:start_of_lag_cols],test.iloc[:,begin_col+1:end_col]],axis=1)
+
+		#Rename cols
+		new_col_names = ['item_cnt_lag_{}'.format(i) for i in xrange(lag_length,0,-1)]
+		print new_col_names
+		d = dict(zip(x.columns[4:],new_col_names))
+		x  = x.rename(d, axis = 1)
+
+		print x.shape
+
+		return x
 
 
 	# def checkOutliers(self):
