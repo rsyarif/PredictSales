@@ -1,5 +1,5 @@
 import lightgbm as lgb
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -37,7 +37,7 @@ class ML:
 		              # }
 
 		num_boost_round = 1000
-		verbose_eval = num_boost_round/10
+		verbose_eval = num_boost_round/20
 		model = lgb.train(lgb_params, 
 		                  lgb_train,
 		                  valid_sets=[lgb_train, lgb_test],
@@ -67,10 +67,11 @@ class ML:
 
 
 		pred_lgb_tr = model.predict(self.x_train)
-		print('Training R-squared for LightGBM is %f' % r2_score(self.y_train, pred_lgb_tr))
+		#print('Training R-squared for LightGBM is %f' % r2_score(self.y_train, pred_lgb_tr))
+		#print('Training MSE for LightGBM is %f' % mean_squared_error(self.y_train, pred_lgb_tr))
 		pred_lgb_val = model.predict(self.x_val)
-		print('Validation R-squared for LightGBM is %f' % r2_score(self.y_val, pred_lgb_val))
-
+		#print('Validation R-squared for LightGBM is %f' % r2_score(self.y_val, pred_lgb_val))
+		#print('Validation MSE for LightGBM is %f' % mean_squared_error(self.y_val, pred_lgb_val))
 		return model,evals_result
 
 

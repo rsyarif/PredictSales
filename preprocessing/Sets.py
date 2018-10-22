@@ -66,7 +66,60 @@ class Sets:
 	def addItemCategoryId(self):
 		# Add item_category_id to sales_train
 		if(self.verbose):print "\nAdd new column: 'item_category_id' to sales_train"
-		self.sales_train = pd.merge(self.sales_train,self.items[['item_id','item_category_id']],on='item_id',how='left').sort_values(by='item_id')
+		#self.sales_train = pd.merge(self.sales_train,self.items[['item_id','item_category_id']],on='item_id',how='left').sort_values(by='item_id')
+		self.sales_train = pd.merge(self.sales_train,self.items[['item_id','item_category_id']],on='item_id',how='left')
+
+
+	def translateItemCategoryId(self):
+		#courtesy of https://www.kaggle.com/alexeyb/coursera-winning-kaggle-competitions
+
+		l = list(self.item_categories.item_category_name)
+		l_cat = l
+
+		for ind in range(0,8):
+		    l_cat[ind] = 'Access'
+
+		for ind in range(10,18):
+		    l_cat[ind] = 'Consoles'
+
+		for ind in range(18,25):
+		    l_cat[ind] = 'Consoles Games'
+
+		for ind in range(26,28):
+		    l_cat[ind] = 'phone games'
+
+		for ind in range(28,32):
+		    l_cat[ind] = 'CD games'
+
+		for ind in range(32,37):
+		    l_cat[ind] = 'Card'
+
+		for ind in range(37,43):
+		    l_cat[ind] = 'Movie'
+
+		for ind in range(43,55):
+		    l_cat[ind] = 'Books'
+
+		for ind in range(55,61):
+		    l_cat[ind] = 'Music'
+
+		for ind in range(61,73):
+		    l_cat[ind] = 'Gifts'
+
+		for ind in range(73,79):
+		    l_cat[ind] = 'Soft'
+
+
+		self.item_categories['eng_cat_id'] = l_cat
+
+		return self.item_categories
+
+
+	def addTranslatedItemCategoryId(self):
+		# Add item_category_id to sales_train
+		if(self.verbose):print "\nAdd new column: 'english translated item_category_id' to sales_train"
+		#self.sales_train = pd.merge(self.sales_train,self.item_categories[['item_category_id','eng_cat_id']],on='item_category_id',how='left').sort_values(by='item_id')
+		self.sales_train = pd.merge(self.sales_train,self.item_categories[['item_category_id','eng_cat_id']],on='item_category_id',how='left')
 
 
 	def addYMcolumn(self):
@@ -102,9 +155,25 @@ class Sets:
 		        if(self.verbose):print '{}-{} :'.format(bin_edges[i],bin_edges[i+1]),
 		        if(self.verbose):print self.sales_train[(self.sales_train.item_price>=bin_edges[i])&(self.sales_train.item_price<bin_edges[i+1])].shape[0]
 
-		bins,labels = self.getBins(bin_edges)            
+		bins,labels = self.getBins(bin_edges)
+
+		if(self.verbose): print 'bins:',bins            
+		if(self.verbose): print 'labels:',labels           
 
 		df_bins = pd.IntervalIndex.from_tuples(bins)
+		s_binned = pd.cut(self.sales_train['item_price'],bins=df_bins,labels=labels)
+
+		if(self.verbose):
+			print "\ncheck for out of bound / NaN binnings (index, item_id, price):"
+			print 'Index:',s_binned[s_binned.isna()].index.values, 
+			print 'item_id:',self.sales_train[s_binned.isna()]['item_id'].values, 
+			print 'item_price:',self.sales_train[s_binned.isna()]['item_price'].values
+
+		###MANUAL FIX for ID, Item_Id 2973, probably was a mistake filling the database:
+		self.sales_train.loc[s_binned.isna(),'item_price'] = self.sales_train['item_price'].median() 
+		if(self.verbose):print 'Fixing missing price range for index:',s_binned[s_binned.isna()].index.values
+
+		### rebin again due to MANUAL FIX.
 		s_binned = pd.cut(self.sales_train['item_price'],bins=df_bins,labels=labels)
 
 		if(self.verbose):print '\nAdding new column: price_range to sales_train.'
@@ -447,6 +516,7 @@ class Sets:
 		df = df_now
 
 		return df
+
 
 	def createDateblockSet(self,dateblocks):
 
